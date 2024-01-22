@@ -3,9 +3,24 @@
 #include <Adafruit_SSD1306.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <max6675.h>
 
-// put function declarations here:
-int myFunction(int, int);
+// #define MOSI 13
+// #define MISO 12
+// #define SCK 14
+// #define SS 15
+
+int thermoSO = 12;
+int thermoCS = 15;
+int thermoSCK = 13;
+
+// int thermoDO = 19;
+// int thermoCS = 23;
+// int thermoCLK = 5;
+
+
+MAX6675 thermocouple(thermoSCK, thermoCS, thermoSO);
+//MAX6675 thermocouple(MISO, MOSI, SS);
 
 // relay pins
 const int GAS_RELAY = 18;
@@ -99,7 +114,6 @@ class DebouncedButton {
         if (btnState != State){
           State = btnState;
           Serial.println("GPIO Pressed: " + String(PIN) + " State: " + String(State));
-          //Serial.println("PRESS Here");
         }
       }
       State_Last = btnState;
@@ -122,10 +136,6 @@ void stopHeater()
   digitalWrite(FAN_RELAY, LOW);
   digitalWrite(GAS_RELAY, LOW);
 }
-
-
-
-
 
 
 
@@ -179,9 +189,9 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp, float lowTem
   //handles two vs 3 digit temps for left alignment
   char buffer2[256];
   if (tmp3 >= 100.0) {
-    sprintf(buffer2, " %.1f%cF    %.1f%cF", tmp3, (char)9, F(""), (char)9);
+    sprintf(buffer2, " %.1f%cF    %.1f%cF", tmp3, (char)9, 99.9, (char)9);
   } else {
-    sprintf(buffer2, " %.1f%cF%s    %.1f%cF", tmp3, (char)9, " ", F(""), (char)9);
+    sprintf(buffer2, " %.1f%cF%s    %.1f%cF", tmp3, (char)9, " ", 99.9, (char)9);
   }
   display.println(buffer2);
 
@@ -229,7 +239,13 @@ void GetTemps(void* pvParameters) {
   //Read Temp Sensors
   for(;;){
   Serial.println("Requesting temperatures...");
+  
+  Serial.println(millis());
+
   RoomSensor.requestTemperatures(); 
+  Serial.println("Got temperatures...");
+  
+  Serial.println(millis());
 
   ROOM_TEMP = (RoomSensor.getTempCByIndex(0) * 9 / 5) + 32;
   EXHAUST_BOTTOM_TEMP = (RoomSensor.getTempCByIndex(1) * 9 / 5) + 32;
@@ -237,7 +253,14 @@ void GetTemps(void* pvParameters) {
   Serial.print(ROOM_TEMP);
   Serial.print("     Fan: ");
   Serial.println(EXHAUST_BOTTOM_TEMP);
-
+  
+  Serial.println(millis());
+  
+  Serial.print("C = "); 
+  Serial.println(thermocouple.readCelsius());
+  Serial.print("F = ");
+  Serial.println(thermocouple.readFahrenheit());
+  Serial.println(millis());
   vTaskDelay(1000);
   }
 }
@@ -265,9 +288,20 @@ DebouncedButton PressBtn;
 DebouncedButton UpEncoder;
 DebouncedButton DownEncoder;
 void setup(){
+  Serial.begin(9600);
+
+
+  Serial.print("MOSI: ");
+  Serial.println(MOSI);
+  Serial.print("MISO: ");
+  Serial.println(MISO);
+  Serial.print("SCK: ");
+  Serial.println(SCK);
+  Serial.print("SS: ");
+  Serial.println(SS); 
 
   //-----------------------------------------------------------OLED------------------------------------
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
@@ -296,7 +330,7 @@ void setup(){
   DownEncoder.Delay = 5;
   attachInterrupt(DOWN, InterruptForButtonPress, RISING);
 
-  Serial.begin(9600);
+  
 
   //-----------------------------------------------------Temperature Sensors---------------------------
   int numberOfMatTempSensors = RoomSensor.getDeviceCount();
