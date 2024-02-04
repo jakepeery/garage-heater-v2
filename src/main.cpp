@@ -96,7 +96,7 @@ void GasOff() {
 }
 
 // time in ms the gas should be on before the heater turns on
-unsigned long fanDelayTime = 30000;
+unsigned long fanDelayTime = 10000;
 unsigned long gasStartedTime;
 bool heaterStarted = false;
 void startHeater() {
