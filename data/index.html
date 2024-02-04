@@ -70,6 +70,11 @@
       </span>
     </div>
     <div class="controls2">
+      <span class="status">
+        <span class="statusElement" id="gas">gas</span>
+        <span class="statusElement" id="exhaust">exhaust</span>
+        <span class="statusElement" id="fan">fan</span>
+      </span>
       <p>
       <p>System State</p>
       <a><button class="button buttonNotSelected" id="UnOccupied" onclick="setMode('1')">Un-Occupied</button></a>
@@ -240,6 +245,24 @@
     } else if (json.room_state == "Full Off") {
       document.getElementById("FullOff").classList.add("buttonSelected")
       document.getElementById("FullOff").classList.remove("buttonNotSelected")
+    }
+
+    if (json.gas_on) {
+      document.getElementById("gas").classList.add("statusElementOn")
+    } else {
+      document.getElementById("gas").classList.remove("statusElementOn")
+    }
+
+    if (json.fan_on) {
+      document.getElementById("fan").classList.add("statusElementOn")
+    } else {
+      document.getElementById("fan").classList.remove("statusElementOn")
+    }
+
+    if (json.exhaust_on) {
+      document.getElementById("exhaust").classList.add("statusElementOn")
+    } else {
+      document.getElementById("exhaust").classList.remove("statusElementOn")
     }
   }
   setInterval(GetCurrentTemps, 2000)

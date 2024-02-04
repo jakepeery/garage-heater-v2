@@ -19,16 +19,12 @@ bool ReadTempsTask_Running = false;
 TaskHandle_t MaintainWifiTask;
 bool MaintainWifi_Running = false;
 
-unsigned long RESTART_TIME =
-    0;  // delay timer to restart tasks after the encoder is changed
+// delay timer to restart tasks after the encoder is changed
+unsigned long RESTART_TIME = 0;
 
 // overall system power - the heater will not un if false
 bool SYSTEM_ON = false;
 bool OCCUPIED_ON = false;  // if high heat occupied temp, if false, heat to
-                           // unoccupied temp - aka do not freeze
-
-bool UNDER_LOW_TEMP = false;
-bool UNDER_HIGH_TEMP = false;
 
 // float LOW_TEMP_SET = 40;
 // float HIGH_TEMP_SET = 68;
@@ -96,7 +92,13 @@ void GasOff() {
 }
 
 // time in ms the gas should be on before the heater turns on
-unsigned long fanDelayTime = 10000;
+unsigned long fanDelayTime = 10000;  // 10 seconds
+
+// gas on off times to avoid heating too quickly/overshooting
+unsigned long gasMaxRunTime = 600000;  // 10 minutes
+unsigned long gasRestTime = 60000;     // 1 minute
+unsigned long gasRestStoppedTime;
+
 unsigned long gasStartedTime;
 bool heaterStarted = false;
 void startHeater() {
@@ -113,10 +115,24 @@ void startHeater() {
     USER.FAN_ON = true;
     USER.EXHAUST_ON = true;  // might as well for good luck
   }
+
+  // Only let gas stay on for a time
+  if (USER.FAN_ON == true && USER.GAS_ON == true &&
+      millis() > gasStartedTime + gasMaxRunTime) {
+    USER.GAS_ON = false;
+    gasRestStoppedTime = millis();
+  }
+
+  // Restart gas once rest period has expired
+  if (USER.FAN_ON == true && USER.GAS_ON == false &&
+      millis() > gasRestStoppedTime + gasRestTime) {
+    gasStartedTime = millis();
+    USER.GAS_ON = true;
+  }
 }
 
 // time in ms the fan will keep running after the gas is turned off
-unsigned long fanExtendTime = 60000;
+unsigned long fanExtendTime = 30000;
 
 // time the tgas stopped so we can reference it
 unsigned long gasStoppedTime;
@@ -128,13 +144,12 @@ void stopHeater() {
     gasStoppedTime = millis();
   }
 
+  // run fan and exhaust for 1 minute
   if (heaterStarted == false && millis() > gasStartedTime + fanExtendTime) {
     USER.EXHAUST_ON = false;
     USER.FAN_ON = false;
     USER.GAS_ON = false;  // might as well for good luck
   }
-
-  // run fan and exhaust for 1 minute
 }
 
 bool EvaluateSafetyTemps() {

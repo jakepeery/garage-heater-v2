@@ -119,6 +119,20 @@ html {
     background-color: hsl(350, 93%, 20%);
   }
 
+  .status{
+    display: flex;
+    justify-content: space-around;
+    
+    color: white;
+  }
+
+  .statusElement{
+    color: red;
+  }
+
+  .statusElementOn{
+    color: green;
+  }
 
   .down{
     background-color: hsl(212, 62%, 55%);
