@@ -86,11 +86,6 @@ class DebouncedButton {
   }
 };
 
-void GasOff() {
-  digitalWrite(GAS_RELAY, LOW);
-  USER.GAS_ON = false;
-}
-
 // time in ms the gas should be on before the heater turns on
 unsigned long fanDelayTime = 10000;  // 10 seconds
 
@@ -152,6 +147,13 @@ void stopHeater() {
   }
 }
 
+void GasOff() {
+  digitalWrite(GAS_RELAY, LOW);
+  USER.GAS_ON = false;
+  gasRestStoppedTime = millis();
+  // used to force gas to stop the nbormal rest period
+}
+
 bool EvaluateSafetyTemps() {
   // Serial.println("EvaluateSafetyTemps");
   bool isSafe = true;
@@ -186,8 +188,6 @@ void EvaluateCurrentTemps() {
                USER.LOW_TEMP_SET + SEPARATION_TEMP) {
       stopHeater();
     }
-  } else {
-    stopHeater();
   }
 }
 
