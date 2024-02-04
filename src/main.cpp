@@ -616,6 +616,7 @@ void loop() {
     OCCUPIED_ON = false;
     USER.EXHAUST_ON = true;
     USER.FAN_ON = true;
+    USER.GAS_ON = false;
   }
 
   if (USER.EXHAUST_ON) {
