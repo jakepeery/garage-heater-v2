@@ -603,6 +603,8 @@ void loop() {
     OCCUPIED_ON = false;
     USER.EXHAUST_ON = false;
     USER.FAN_ON = false;
+    USER.GAS_ON = false;
+    stopHeater();
   } else if (USER.SELECTED_MODE == 4) {  // Exhaust Only
     SYSTEM_ON = false;
     OCCUPIED_ON = false;
