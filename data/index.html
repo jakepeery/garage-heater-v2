@@ -170,7 +170,8 @@
       document.getElementById("ForceFan").classList.add("buttonSelected")
       document.getElementById("ForceFan").classList.remove("buttonNotSelected")
     }
-    GetCurrentTemps();
+
+    setTimeout(GetCurrentTemps, 100);
   }
 
   async function highTempBumpDown() {
