@@ -46,7 +46,7 @@ void GetTemps(void *pvParameters) {
     (*SENSOR_TEMPS).ROOM_TEMP = (RoomSensor.getTempCByIndex(0) * 9 / 5) + 32;
     SENSOR_TEMPS->EXHAUST_BOTTOM_TEMP =
         (RoomSensor.getTempCByIndex(1) * 9 / 5) + 32;
-    SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit() - 2.5;
+    SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit();
     vTaskDelay(1000);
   }
 }

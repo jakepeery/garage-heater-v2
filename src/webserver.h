@@ -3,4 +3,4 @@
 void MaintainWifi(void *pvParameters);
 void SetupWifi();
 void SetupWifiAsAP();
-void SetupWebServerWithWifi(UserSettableData *SENSOR_TEMPS);
+void SetupWebServerWithWifi(UserSettableData *UserData);

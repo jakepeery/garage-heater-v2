@@ -140,7 +140,7 @@ void stopHeater() {
   }
 
   // run fan and exhaust for 1 minute
-  if (heaterStarted == false && millis() > gasStartedTime + fanExtendTime) {
+  if (heaterStarted == false && millis() > gasStoppedTime + fanExtendTime) {
     USER.EXHAUST_ON = false;
     USER.FAN_ON = false;
     USER.GAS_ON = false;  // might as well for good luck
@@ -229,10 +229,30 @@ void StartupScreen() {
   display.setTextSize(2);
   sprintf(stat, "%s", USER.IPAddress);
   display.println("BOOTING");
-  display.println("IP Addr");
+  display.println("Please");
+  display.println("Wait..");
+  display.display();
+}
+
+void IpAddressScreen() {
+  char stat[64];
+  char mode[64];
+  display.clearDisplay();
+
+  display.setTextColor(SSD1306_WHITE);  // Draw white text
+  display.setCursor(0, 0);              // Start at top-left corner
+  display.cp437(true);  // Use full 256 char 'Code Page 437' font
+
+  display.setTextSize(2);
+  sprintf(stat, "%s", USER.IPAddress);
+  sprintf(mode, "%s", USER.WifiMode);
+  display.println("Wifi");
   display.setTextSize(1);
+  display.print("IP Addr ");
   display.println(stat);
-  display.println("AP is 192.168.4.1");
+  display.println("");
+  display.print("Wifi Mode ");
+  display.println(USER.WifiMode);
   display.display();
 }
 
@@ -424,6 +444,7 @@ void setup() {
   }
   delay(500);
   display.clearDisplay();
+  StartupScreen();
 
   // get stored parameters for temps
   storedTemps.begin("setTemps", false);
@@ -458,7 +479,7 @@ void setup() {
 
   SetupWebServerWithWifi(&USER);
 
-  StartupScreen();
+  IpAddressScreen();
   delay(5000);
 
   //-----------------------------------------------------Outputs

@@ -36,6 +36,7 @@ struct Temps {
 struct UserSettableData {
   Temps SENSOR_TEMPS;
   char IPAddress[64];
+  char WifiMode[64];
   bool GAS_ON = false;
   bool FAN_ON = false;
   bool EXHAUST_ON = false;

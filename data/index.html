@@ -159,19 +159,17 @@
       console.log("set Full Off")
       document.getElementById("FullOff").classList.add("buttonRedSelected")
       document.getElementById("FullOff").classList.remove("buttonRedNotSelected")
-    }
-    else if (json.room_state == "Exhaust") {
+    } else if (json.room_state == "Exhaust") {
       console.log("set Exhaust")
       document.getElementById("Exhaust").classList.add("buttonSelected")
       document.getElementById("Exhaust").classList.remove("buttonNotSelected")
-    }
-    else if (json.room_state == "Force Fan") {
+    } else if (json.room_state == "Force Fan") {
       console.log("set Force Fan")
       document.getElementById("ForceFan").classList.add("buttonSelected")
       document.getElementById("ForceFan").classList.remove("buttonNotSelected")
     }
 
-    setTimeout(GetCurrentTemps, 100);
+    setTimeout(GetCurrentTemps, 200);
   }
 
   async function highTempBumpDown() {
@@ -231,11 +229,15 @@
 
     document.getElementById("UnOccupied").classList.remove("buttonSelected")
     document.getElementById("HeatOn").classList.remove("buttonSelected")
-    document.getElementById("FullOff").classList.remove("buttonSelected")
+    document.getElementById("FullOff").classList.remove("buttonRedSelected")
+    document.getElementById("Exhaust").classList.remove("buttonSelected")
+    document.getElementById("ForceFan").classList.remove("buttonSelected")
 
     document.getElementById("UnOccupied").classList.add("buttonNotSelected")
     document.getElementById("HeatOn").classList.add("buttonNotSelected")
-    document.getElementById("FullOff").classList.add("buttonNotSelected")
+    document.getElementById("FullOff").classList.add("buttonRedNotSelected")
+    document.getElementById("Exhaust").classList.add("buttonNotSelected")
+    document.getElementById("ForceFan").classList.add("buttonNotSelected")
 
 
     if (json.room_state == "UnOccupied") {
@@ -245,8 +247,14 @@
       document.getElementById("HeatOn").classList.add("buttonSelected")
       document.getElementById("HeatOn").classList.remove("buttonNotSelected")
     } else if (json.room_state == "Full Off") {
-      document.getElementById("FullOff").classList.add("buttonSelected")
-      document.getElementById("FullOff").classList.remove("buttonNotSelected")
+      document.getElementById("FullOff").classList.add("buttonRedSelected")
+      document.getElementById("FullOff").classList.remove("buttonRedNotSelected")
+    } else if (json.room_state == "Exhaust") {
+      document.getElementById("Exhaust").classList.add("buttonSelected")
+      document.getElementById("Exhaust").classList.remove("buttonNotSelected")
+    } else if (json.room_state == "Force Fan") {
+      document.getElementById("ForceFan").classList.add("buttonSelected")
+      document.getElementById("ForceFan").classList.remove("buttonNotSelected")
     }
 
     if (json.gas_on) {

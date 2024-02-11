@@ -144,7 +144,7 @@ bool SetupWifi() {
     delay(1000);
     status = WiFi.status();
     Serial.println(get_wifi_status(status));
-    if (count > 10) {
+    if (count > 20) {
       break;
     }
   }
@@ -520,6 +520,10 @@ void SetupRoutes(UserSettableData *User) {
                 root["room_state"] = "Heat On";
               } else if (selected_mode == 3) {
                 root["room_state"] = "Full Off";
+              } else if (selected_mode == 4) {
+                root["room_state"] = "Exhaust";
+              } else if (selected_mode == 5) {
+                root["room_state"] = "Force Fan";
               } else {
                 root["room_state"] = "Unknown";
               }
@@ -551,6 +555,15 @@ void SetupWebServerWithWifi(UserSettableData *UserData) {
   String ipAddressReturn;
   ipAddressReturn = WiFi.localIP().toString();
   strcpy(UserData->IPAddress, ipAddressReturn.c_str());
+
+  String ipModeReturn;
+  ipModeReturn = WiFi.getMode();
+  if (ipModeReturn == "1") {
+    ipModeReturn = "Client";
+  } else {
+    ipModeReturn = "AP";
+  }
+  strcpy(UserData->WifiMode, ipModeReturn.c_str());
 
   server.begin();
 }
