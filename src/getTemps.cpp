@@ -6,7 +6,7 @@
 #include "main.h"
 
 // Temp Sensor 18B20 Pins
-#define TEMP_PIN 4
+#define TEMP_PIN 27
 OneWire oneWire(TEMP_PIN);
 DallasTemperature RoomSensor(&oneWire);
 #define SensorResolution 11

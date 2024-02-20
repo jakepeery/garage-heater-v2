@@ -30,7 +30,7 @@ bool OCCUPIED_ON = false;  // if high heat occupied temp, if false, heat to
 // float HIGH_TEMP_SET = 68;
 float LOW_TEMP_EXISTING;
 float HIGH_TEMP_EXISTING;
-float MAX_TEMP = 80;
+float MAX_TEMP = 99;
 float MIN_TEMP = 32;
 
 float ROOM_TEMP_EXISTING;
@@ -578,6 +578,14 @@ void loop() {
   // Encoder Direction
   bool triggered_up = digitalRead(UP);      // UpEncoder.buttonDebounce(); //
   bool triggered_down = digitalRead(DOWN);  // DownEncoder.buttonDebounce(); //
+
+  // if (triggered_up) {
+  //   Serial.println("triggered_up Pressed");
+  // }
+
+  // if (triggered_down) {
+  //   Serial.println("triggered_down Pressed");
+  // }
 
   if ((triggered_up != UP_ENCODER_STATE) && triggered_up) {
     if (triggered_down != triggered_up) {

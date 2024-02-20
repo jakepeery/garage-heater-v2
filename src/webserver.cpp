@@ -119,10 +119,12 @@ bool SetupWifi() {
 
   WiFi.mode(WIFI_STA);
 
+  WiFi.begin(ssid.c_str(), password.c_str());
+  delay(1000);
   WiFi.disconnect();
-  delay(500);
+  delay(1000);
 
-  WiFi.setHostname("Garage-Heater");
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
 
   Serial.println("Attempting to connect to WiFi.. ");
@@ -136,7 +138,7 @@ bool SetupWifi() {
   Serial.println(get_wifi_status(status));
 
   int count = 1;
-  while (status != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) {
     Serial.print("Attempting to connect to WiFi.. ");
     Serial.println(count);
     count = count + 1;
@@ -144,10 +146,11 @@ bool SetupWifi() {
     delay(1000);
     status = WiFi.status();
     Serial.println(get_wifi_status(status));
-    if (count > 20) {
+    if (count > 50) {
       break;
     }
   }
+  WiFi.setHostname("Garage-Heater");
   WiFi.hostname("Garage-Heater");
 
   if (WiFi.status() == WL_CONNECTED) {
