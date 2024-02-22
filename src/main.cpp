@@ -360,7 +360,7 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp,
   // handles two vs 3 digit temps for left alignment
   char buffer[256];
   if (tmp1 >= 100.0) {
-    sprintf(buffer, " Room         %.1f%cF", tmp1, (char)9);
+    sprintf(buffer, " Room       %.1f%cF", tmp1, (char)9);
   } else {
     sprintf(buffer, " Room        %.1f%cF", tmp1, (char)9);
   }
@@ -369,7 +369,7 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp,
   // handles two vs 3 digit temps for left alignment
   char buffer2[256];
   if (tmp2 >= 100.0) {
-    sprintf(buffer2, " Lower Vent   %.1f%cF", tmp2, (char)9);
+    sprintf(buffer2, " Lower Vent %.1f%cF", tmp2, (char)9);
   } else {
     sprintf(buffer2, " Lower Vent  %.1f%cF", tmp2, (char)9);
   }
@@ -378,7 +378,7 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp,
   // handles two vs 3 digit temps for left alignment
   char buffer3[256];
   if (tmp3 >= 100.0) {
-    sprintf(buffer3, " Top Vent     %.1f%cF", tmp3, (char)9);
+    sprintf(buffer3, " Top Vent   %.1f%cF", tmp3, (char)9);
   } else {
     sprintf(buffer3, " Top Vent    %.1f%cF", tmp3, (char)9);
   }
