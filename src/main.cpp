@@ -128,6 +128,7 @@ void startHeater() {
 
 // time in ms the fan will keep running after the gas is turned off
 unsigned long fanExtendTime = 30000;
+unsigned long exhauseFanExtendTime = 60000;
 
 // time the tgas stopped so we can reference it
 unsigned long gasStoppedTime;
@@ -141,7 +142,9 @@ void stopHeater() {
 
   // run fan and exhaust for 1 minute
   if (heaterStarted == false && millis() > gasStoppedTime + fanExtendTime) {
-    USER.EXHAUST_ON = false;
+    if (millis() > gasStoppedTime + exhauseFanExtendTime) {
+      USER.EXHAUST_ON = false;
+    }
     USER.FAN_ON = false;
     USER.GAS_ON = false;  // might as well for good luck
   }
