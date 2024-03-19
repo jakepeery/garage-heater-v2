@@ -46,7 +46,20 @@ void GetTemps(void *pvParameters) {
     (*SENSOR_TEMPS).ROOM_TEMP = (RoomSensor.getTempCByIndex(0) * 9 / 5) + 32;
     SENSOR_TEMPS->EXHAUST_BOTTOM_TEMP =
         (RoomSensor.getTempCByIndex(1) * 9 / 5) + 32;
-    SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit();
+    // Start Attempted fix+
+    float tempTop = thermocouple.readFahrenheit();
+    // if (tempTop == NAN) {
+    //   SENSOR_TEMPS->EXHAUST_TOP_TEMP = SENSOR_TEMPS->EXHAUST_TOP_TEMP;
+    // } else {
+    //   SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit();
+    // }
+
+    if (tempTop != NAN) {
+      SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit();
+    }
+
+    // end attempted fix
+    // SENSOR_TEMPS->EXHAUST_TOP_TEMP = thermocouple.readFahrenheit();
     vTaskDelay(1000);
   }
 }
