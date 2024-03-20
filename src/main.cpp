@@ -456,6 +456,10 @@ void setup() {
   USER.SELECTED_MODE = storedTemps.getInt("selected_mode");
   storedTemps.end();
 
+  // initialize temp sensor values incase sensors dont work
+  USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP = 20.0;
+  USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP = 20.0;
+  USER.SENSOR_TEMPS.ROOM_TEMP = 20.0;
   delay(500);
   if (isnan(USER.HIGH_TEMP_SET) || isnan(USER.LOW_TEMP_SET) ||
       isnan(USER.SELECTED_MODE)) {
