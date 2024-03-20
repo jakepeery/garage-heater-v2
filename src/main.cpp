@@ -87,7 +87,7 @@ class DebouncedButton {
 };
 
 // time in ms the gas should be on before the heater turns on
-unsigned long fanDelayTime = 10000;  // 10 seconds
+unsigned long fanDelayTime = 10;  // in ms
 
 // gas on off times to avoid heating too quickly/overshooting
 unsigned long gasMaxRunTime = 600000;  // 10 minutes
@@ -134,6 +134,7 @@ unsigned long exhauseFanExtendTime = 60000;
 unsigned long gasStoppedTime;
 void stopHeater() {
   // Stop Gas
+  // if (!USER.GAS_ON || !USER.FAN_ON)
   if (heaterStarted == true) {
     USER.GAS_ON = false;
     heaterStarted = false;
@@ -142,11 +143,21 @@ void stopHeater() {
 
   // run fan and exhaust for 1 minute
   if (heaterStarted == false && millis() > gasStoppedTime + fanExtendTime) {
-    if (millis() > gasStoppedTime + exhauseFanExtendTime) {
+    // if (millis() > gasStoppedTime + exhauseFanExtendTime) {
+    // Serial.println("Here 1");
+    if (USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP < 150.0 &&
+        USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP < 200.0) {
       USER.EXHAUST_ON = false;
+      Serial.println("Stopping Exhaust Fan");
+    } else {
+      Serial.println("Stopping... Waiting for exhaust to cool");
     }
+    // Serial.println("Here 3");
     USER.FAN_ON = false;
     USER.GAS_ON = false;  // might as well for good luck
+    Serial.println("Stopping Fan");
+  } else {
+    Serial.println("Stopping... Waiting for fan to cool down");
   }
 }
 
@@ -154,7 +165,7 @@ void GasOff() {
   digitalWrite(GAS_RELAY, LOW);
   USER.GAS_ON = false;
   gasRestStoppedTime = millis();
-  // used to force gas to stop the nbormal rest period
+  // used to force gas to stop the normal rest period
 }
 
 bool EvaluateSafetyTemps() {
@@ -173,7 +184,9 @@ bool EvaluateSafetyTemps() {
 
 // heater logic
 float SEPARATION_TEMP = 1.0;
+
 void EvaluateCurrentTemps() {
+  Serial.println("Evaluate CurrentTems");
   // evaluate system state - ie is the system on, off, or unoccupied
   if (SYSTEM_ON && OCCUPIED_ON && EvaluateSafetyTemps()) {
     // evaluate the temperature readings
@@ -460,6 +473,7 @@ void setup() {
   USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP = 20.0;
   USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP = 20.0;
   USER.SENSOR_TEMPS.ROOM_TEMP = 20.0;
+  stopHeater();
   delay(500);
   if (isnan(USER.HIGH_TEMP_SET) || isnan(USER.LOW_TEMP_SET) ||
       isnan(USER.SELECTED_MODE)) {
@@ -640,7 +654,8 @@ void loop() {
     USER.EXHAUST_ON = false;
     USER.FAN_ON = false;
     USER.GAS_ON = false;
-    stopHeater();
+    heaterStarted = false;
+    // stopHeater();
   } else if (USER.SELECTED_MODE == 4) {  // Exhaust Only
     SYSTEM_ON = false;
     OCCUPIED_ON = false;
@@ -672,8 +687,6 @@ void loop() {
   } else {
     digitalWrite(GAS_RELAY, LOW);
   }
-
-  EvaluateCurrentTemps();
 
   // Update screen if values change
   if (LOW_TEMP_EXISTING != USER.LOW_TEMP_SET ||
@@ -707,6 +720,7 @@ void loop() {
                USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP,
                USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP, USER.HIGH_TEMP_SET,
                USER.LOW_TEMP_SET, USER.SELECTED_MODE, SELECTED_TEMP);
+    EvaluateCurrentTemps();
   }
 
   if (RESTART_TIME < millis() && !ReadTempsTask_Running) {

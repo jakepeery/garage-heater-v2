@@ -339,7 +339,7 @@ void SetupRoutes(UserSettableData *User) {
           request->send(response);
         }
 
-        if (direction == "up" && User->HIGH_TEMP_SET <= 80) {
+        if (direction == "up" && User->HIGH_TEMP_SET <= 98) {
           root["changed_temp"] = direction;
           User->HIGH_TEMP_SET = User->HIGH_TEMP_SET + 1;
         } else if (direction == "down" && User->HIGH_TEMP_SET >= 32) {
