@@ -409,7 +409,7 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp,
 // messed with. Then resumes after 1 second of not being re-triggered
 void InterruptForButtonPress() {
   if (ReadTempsTask_Running || MaintainWifi_Running) {
-    Serial.println("Stopping all tasks");
+    // Serial.println("Stopping all tasks");
     vTaskSuspend(ReadTempsTask);
     vTaskSuspend(MaintainWifiTask);
     ReadTempsTask_Running = false;
@@ -455,8 +455,7 @@ void setup() {
   // Setup------------------------------------
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ;  // Don't proceed, loop forever
+    for (;;);  // Don't proceed, loop forever
   }
   delay(500);
   display.clearDisplay();
