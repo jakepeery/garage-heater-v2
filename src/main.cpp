@@ -4,11 +4,17 @@
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <SPIFFS.h>
+#include <Update.h>
+#include <esp_task_wdt.h>
 
 #include "getTemps.h"
 #include "webserver.h"
+
+#define WDT_TIMEOUT 30  // 30 second watchdog timeout
 
 static Preferences storedTemps;
 static TimerHandle_t storeTempsOneShotTimer;
@@ -33,9 +39,9 @@ float HIGH_TEMP_EXISTING;
 float MAX_TEMP = 99;
 float MIN_TEMP = 32;
 
-float ROOM_TEMP_EXISTING;
-float EXHAUST_TOP_TEMP_EXISTING;
-float EXHAUST_BOTTOM_TEMP_EXISTING;
+float ON_BOARD_TEMP_EXISTING;
+float LOWER_VENT_TEMP_EXISTING;
+float IN_ROOM_TEMP_EXISTING;
 
 int SELECTED_TEMP = 0;
 int SELECTED_TEMP_EXISTING;
@@ -46,7 +52,7 @@ int SELECTED_MODE_EXISTING;
 int SELECTED_MODE_MAX = 5;
 int SELECTED_MODE_MIN = 1;
 
-static UserSettableData USER;
+UserSettableData USER;
 
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 64  // OLED display height, in pixels
@@ -89,14 +95,35 @@ class DebouncedButton {
 // time in ms the gas should be on before the heater turns on
 unsigned long fanDelayTime = 10;  // in ms
 
-// gas on off times to avoid heating too quickly/overshooting
-unsigned long gasMaxRunTime = 600000;  // 10 minutes
-unsigned long gasRestTime = 60000;     // 1 minute
+// gas on off times - balanced for continuous warm air with gentle cycling
+// Longer on-time reduces valve wear, shorter rest keeps air warm
+// These are now stored in preferences and adjustable via web UI
+unsigned long gasMaxRunTime = 300000;  // 5 minutes on (default)
+unsigned long gasRestTime = 90000;     // 1.5 minutes off (default)
 unsigned long gasRestStoppedTime;
+
+// Exhaust temperature management for safety and efficiency
+#define EXHAUST_TEMP_WARNING 125   // Force cooldown and wait for temp to drop
+#define EXHAUST_TEMP_CRITICAL 132  // Immediate shutdown - near fan limit
+#define EXHAUST_TEMP_RESUME 115    // Must cool below this before resuming gas
+bool exhaustTempLimitTriggered = false;
+
+// Preferences object for storing cycle times
+Preferences storedCycleTimes;
+
+// Forward declaration
+void stopHeater();
 
 unsigned long gasStartedTime;
 bool heaterStarted = false;
 void startHeater() {
+  // CRITICAL: Never start heater if sensors are invalid
+  if (!USER.SENSOR_TEMPS.SENSORS_VALID) {
+    Serial.println("*** CANNOT START HEATER - SENSORS INVALID ***");
+    stopHeater();
+    return;
+  }
+
   // Start gas and exhaust fan
   if (heaterStarted == false) {
     heaterStarted = true;
@@ -111,18 +138,79 @@ void startHeater() {
     USER.EXHAUST_ON = true;  // might as well for good luck
   }
 
-  // Only let gas stay on for a time
+  // CRITICAL: If sensors become invalid, immediately shut down
+  if (!USER.SENSOR_TEMPS.SENSORS_VALID) {
+    Serial.println(
+        "*** SENSORS INVALID DURING OPERATION - EMERGENCY SHUTDOWN ***");
+    stopHeater();
+    return;
+  }
+
+  // Check exhaust temp - force shutdown if too hot
+  if (USER.GAS_ON == true &&
+      USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_CRITICAL) {
+    Serial.print("*** EXHAUST CRITICAL: ");
+    Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
+    Serial.println("F - FORCING COOLDOWN ***");
+    USER.GAS_ON = false;
+    gasRestStoppedTime = millis();
+    exhaustTempLimitTriggered = true;
+  } else if (USER.GAS_ON == true &&
+             USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_WARNING) {
+    Serial.print("*** EXHAUST WARNING: ");
+    Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
+    Serial.println("F - FORCING COOLDOWN ***");
+    USER.GAS_ON = false;
+    gasRestStoppedTime = millis();
+    exhaustTempLimitTriggered = true;
+  }
+
+  // Only let gas stay on for max time
   if (USER.FAN_ON == true && USER.GAS_ON == true &&
       millis() > gasStartedTime + gasMaxRunTime) {
     USER.GAS_ON = false;
     gasRestStoppedTime = millis();
   }
 
-  // Restart gas once rest period has expired
-  if (USER.FAN_ON == true && USER.GAS_ON == false &&
-      millis() > gasRestStoppedTime + gasRestTime) {
-    gasStartedTime = millis();
-    USER.GAS_ON = true;
+  // Restart gas once conditions are met
+  if (USER.FAN_ON == true && USER.GAS_ON == false) {
+    bool canResume = false;
+
+    // If thermal limit was triggered, must wait for temperature to drop
+    if (exhaustTempLimitTriggered) {
+      if (USER.SENSOR_TEMPS.LOWER_VENT_TEMP < EXHAUST_TEMP_RESUME) {
+        Serial.print("Exhaust cooled to ");
+        Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
+        Serial.println("F - OK to resume");
+        exhaustTempLimitTriggered = false;
+        canResume = true;
+      } else {
+        // Still too hot - keep waiting
+        if (millis() - gasRestStoppedTime > 10000) {  // Log every 10 seconds
+          static unsigned long lastTempLog = 0;
+          if (millis() - lastTempLog > 10000) {
+            Serial.print("Waiting for exhaust to cool... currently ");
+            Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
+            Serial.print("F (need <");
+            Serial.print(EXHAUST_TEMP_RESUME);
+            Serial.println("F)");
+            lastTempLog = millis();
+          }
+        }
+        canResume = false;
+      }
+    } else {
+      // Normal cycle - just wait for time
+      canResume = (millis() > gasRestStoppedTime + gasRestTime);
+    }
+
+    if (canResume && USER.SENSOR_TEMPS.SENSORS_VALID) {
+      gasStartedTime = millis();
+      USER.GAS_ON = true;
+    } else if (canResume && !USER.SENSOR_TEMPS.SENSORS_VALID) {
+      Serial.println("*** CANNOT RESUME GAS - SENSORS INVALID ***");
+      stopHeater();
+    }
   }
 }
 
@@ -145,8 +233,8 @@ void stopHeater() {
   if (heaterStarted == false && millis() > gasStoppedTime + fanExtendTime) {
     // if (millis() > gasStoppedTime + exhauseFanExtendTime) {
     // Serial.println("Here 1");
-    if (USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP < 150.0 &&
-        USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP < 200.0) {
+    if (USER.SENSOR_TEMPS.IN_ROOM_TEMP < 150.0 &&
+        USER.SENSOR_TEMPS.LOWER_VENT_TEMP < 200.0) {
       USER.EXHAUST_ON = false;
       Serial.println("Stopping Exhaust Fan");
     } else {
@@ -171,14 +259,43 @@ void GasOff() {
 bool EvaluateSafetyTemps() {
   // Serial.println("EvaluateSafetyTemps");
   bool isSafe = true;
-  if (USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP > exhaust_top_max_temp_safety) {
+
+  // CRITICAL: If sensors are invalid, immediately fail-safe
+  if (!USER.SENSOR_TEMPS.SENSORS_VALID) {
+    Serial.println("*** SENSORS INVALID - SHUTTING DOWN HEATER ***");
     GasOff();
-    isSafe = false;
-  } else if (USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP >
-             exhaust_bottom_max_temp_safety) {
+    return false;
+  }
+
+  // CRITICAL: If fan failure detected, immediately fail-safe
+  if (USER.SENSOR_TEMPS.FAN_FAILURE_DETECTED) {
+    Serial.println("*** FAN FAILURE - SHUTTING DOWN HEATER ***");
+    stopHeater();
+    return false;
+  }
+
+  // Check exhaust temp - must stay below 140°F to protect inline duct fan
+  if (USER.SENSOR_TEMPS.LOWER_VENT_TEMP > exhaust_temp_max_safety) {
+    Serial.print("*** EXHAUST TOO HOT: ");
+    Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
+    Serial.println("F - SHUTTING DOWN ***");
     GasOff();
     isSafe = false;
   }
+
+  // Check room sensors don't exceed DS18B20 limits
+  if (USER.SENSOR_TEMPS.ON_BOARD_TEMP > room_temp_max_safety) {
+    Serial.println("*** ON BOARD TEMP TOO HOT - SHUTTING DOWN ***");
+    GasOff();
+    isSafe = false;
+  }
+
+  if (USER.SENSOR_TEMPS.IN_ROOM_TEMP > room_temp_max_safety) {
+    Serial.println("*** IN ROOM TEMP TOO HOT - SHUTTING DOWN ***");
+    GasOff();
+    isSafe = false;
+  }
+
   return isSafe;
 }
 
@@ -190,17 +307,17 @@ void EvaluateCurrentTemps() {
   // evaluate system state - ie is the system on, off, or unoccupied
   if (SYSTEM_ON && OCCUPIED_ON && EvaluateSafetyTemps()) {
     // evaluate the temperature readings
-    if (USER.SENSOR_TEMPS.ROOM_TEMP < USER.HIGH_TEMP_SET) {
+    if (USER.SENSOR_TEMPS.IN_ROOM_TEMP < USER.HIGH_TEMP_SET) {
       startHeater();
-    } else if (USER.SENSOR_TEMPS.ROOM_TEMP >
+    } else if (USER.SENSOR_TEMPS.IN_ROOM_TEMP >
                USER.HIGH_TEMP_SET + SEPARATION_TEMP) {
       stopHeater();
     }
   } else if (SYSTEM_ON && !OCCUPIED_ON && EvaluateSafetyTemps()) {
     // evaluate the temperature readings
-    if (USER.SENSOR_TEMPS.ROOM_TEMP < USER.LOW_TEMP_SET) {
+    if (USER.SENSOR_TEMPS.IN_ROOM_TEMP < USER.LOW_TEMP_SET) {
       startHeater();
-    } else if (USER.SENSOR_TEMPS.ROOM_TEMP >
+    } else if (USER.SENSOR_TEMPS.IN_ROOM_TEMP >
                USER.LOW_TEMP_SET + SEPARATION_TEMP) {
       stopHeater();
     }
@@ -373,49 +490,72 @@ void drawScreen(float tmp1, float tmp2, float tmp3, float highTemp,
   display.setTextSize(1);
   display.println(F("    Sensor Temps"));
 
-  // handles two vs 3 digit temps for left alignment
+  // If fan failure detected, take over the entire screen
+  if (USER.SENSOR_TEMPS.FAN_FAILURE_DETECTED) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+    display.println(F("!! FAN !!"));
+    display.println(F("FAILURE"));
+    display.setTextSize(1);
+    display.println("");
+    display.println(F("Lower fan may be"));
+    display.println(F("broken!"));
+    display.println("");
+    display.println(F("System STOPPED"));
+    display.display();
+    return;  // Skip normal display
+  }
+
+  // Display on-board temp or N/A if disconnected
   char buffer[256];
-  if (tmp1 >= 100.0) {
-    sprintf(buffer, " Room       %.1f%cF", tmp1, (char)9);
+  if (USER.SENSOR_TEMPS.ON_BOARD_TEMP_CONNECTED) {
+    if (tmp1 >= 100.0) {
+      sprintf(buffer, " On Board   %.1f%cF", tmp1, (char)9);
+    } else {
+      sprintf(buffer, " On Board    %.1f%cF", tmp1, (char)9);
+    }
   } else {
-    sprintf(buffer, " Room        %.1f%cF", tmp1, (char)9);
+    sprintf(buffer, " On Board    N/A");
   }
   display.println(buffer);
 
-  // handles two vs 3 digit temps for left alignment
+  // Display in-room temp or N/A if disconnected
   char buffer2[256];
-  if (tmp2 >= 100.0) {
-    sprintf(buffer2, " Lower Vent %.1f%cF", tmp2, (char)9);
+  if (USER.SENSOR_TEMPS.IN_ROOM_TEMP_CONNECTED) {
+    if (tmp2 >= 100.0) {
+      sprintf(buffer2, " In Room    %.1f%cF", tmp2, (char)9);
+    } else {
+      sprintf(buffer2, " In Room     %.1f%cF", tmp2, (char)9);
+    }
   } else {
-    sprintf(buffer2, " Lower Vent  %.1f%cF", tmp2, (char)9);
+    sprintf(buffer2, " In Room     N/A");
   }
   display.println(buffer2);
 
-  // handles two vs 3 digit temps for left alignment
+  // Display lower vent temp or N/A if disconnected
   char buffer3[256];
-  if (tmp3 >= 100.0) {
-    sprintf(buffer3, " Top Vent   %.1f%cF", tmp3, (char)9);
+  if (USER.SENSOR_TEMPS.LOWER_VENT_TEMP_CONNECTED) {
+    if (tmp3 >= 100.0) {
+      sprintf(buffer3, " Lower Vent %.1f%cF", tmp3, (char)9);
+    } else {
+      sprintf(buffer3, " Lower Vent  %.1f%cF", tmp3, (char)9);
+    }
   } else {
-    sprintf(buffer3, " Top Vent    %.1f%cF", tmp3, (char)9);
+    sprintf(buffer3, " Lower Vent  N/A");
   }
   display.println(buffer3);
-
-  // State of the system (heating, cooling, standby, etc)
 
   display.display();
 }
 
 // add interrupts that stop the temperature task when any of the inputs are
 // messed with. Then resumes after 1 second of not being re-triggered
+// DISABLED - This was causing crashes and is no longer needed
 void InterruptForButtonPress() {
-  if (ReadTempsTask_Running || MaintainWifi_Running) {
-    // Serial.println("Stopping all tasks");
-    vTaskSuspend(ReadTempsTask);
-    vTaskSuspend(MaintainWifiTask);
-    ReadTempsTask_Running = false;
-    MaintainWifi_Running = false;
-  }
-  RESTART_TIME = millis() + 5000;
+  // Interrupt handler removed - using polling instead for stability
+  // The task suspension/resume logic was causing memory corruption and reboots
 }
 
 void printHardwareInfo() {
@@ -451,6 +591,11 @@ DebouncedButton DownEncoder;
 void setup() {
   Serial.begin(115200);
 
+  // Configure and enable watchdog timer
+  Serial.println("Configuring WDT...");
+  esp_task_wdt_init(WDT_TIMEOUT, true);  // Enable panic so ESP32 restarts
+  esp_task_wdt_add(NULL);                // Add current thread to WDT watch
+
   //-----------------------------------------------------------OLED
   // Setup------------------------------------
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -468,10 +613,25 @@ void setup() {
   USER.SELECTED_MODE = storedTemps.getInt("selected_mode");
   storedTemps.end();
 
+  // Load cycle timing parameters
+  storedCycleTimes.begin("cycleTimes", false);
+  gasMaxRunTime =
+      storedCycleTimes.getULong("gasOnTime", 300000);  // Default 5 min
+  gasRestTime =
+      storedCycleTimes.getULong("gasRestTime", 90000);  // Default 1.5 min
+  storedCycleTimes.end();
+
+  Serial.print("Loaded Gas On Time: ");
+  Serial.print(gasMaxRunTime / 60000.0);
+  Serial.println(" minutes");
+  Serial.print("Loaded Gas Rest Time: ");
+  Serial.print(gasRestTime / 60000.0);
+  Serial.println(" minutes");
+
   // initialize temp sensor values incase sensors dont work
-  USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP = 20.0;
-  USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP = 20.0;
-  USER.SENSOR_TEMPS.ROOM_TEMP = 20.0;
+  USER.SENSOR_TEMPS.IN_ROOM_TEMP = 20.0;
+  USER.SENSOR_TEMPS.LOWER_VENT_TEMP = 20.0;
+  USER.SENSOR_TEMPS.ON_BOARD_TEMP = 20.0;
   stopHeater();
   delay(500);
   if (isnan(USER.HIGH_TEMP_SET) || isnan(USER.LOW_TEMP_SET) ||
@@ -499,6 +659,60 @@ void setup() {
 
   SetupWebServerWithWifi(&USER);
 
+  // Setup OTA updates
+  ArduinoOTA.setHostname("Garage-Heater");
+  ArduinoOTA.setPassword("garage123");  // Change this password!
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else {  // U_SPIFFS
+      type = "filesystem";
+    }
+    Serial.println("Start updating " + type);
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(0, 0);
+    display.println("OTA Update");
+    display.println("Starting...");
+    display.display();
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(0, 0);
+    display.println("OTA Update");
+    display.println("Complete!");
+    display.display();
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR)
+      Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR)
+      Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR)
+      Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR)
+      Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR)
+      Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("OTA Ready");
+
+  // Setup mDNS for easy access via hostname
+  if (MDNS.begin("Garage-Heater")) {
+    Serial.println("mDNS responder started: http://Garage-Heater.local");
+    MDNS.addService("http", "tcp", 80);
+  } else {
+    Serial.println("Error setting up mDNS responder!");
+  }
+
   IpAddressScreen();
   delay(5000);
 
@@ -513,17 +727,20 @@ void setup() {
   pinMode(PRESS, INPUT_PULLDOWN);
   PressBtn.PIN = PRESS;
   PressBtn.Delay = 50;
-  attachInterrupt(PRESS, InterruptForButtonPress, RISING);
+  // Remove interrupt attachment - polling is more stable for encoders
+  // attachInterrupt(PRESS, InterruptForButtonPress, RISING);
 
   pinMode(UP, INPUT_PULLDOWN);
   UpEncoder.PIN = UP;
   UpEncoder.Delay = 5;
-  attachInterrupt(UP, InterruptForButtonPress, RISING);
+  // Remove interrupt attachment - polling is more stable for encoders
+  // attachInterrupt(UP, InterruptForButtonPress, RISING);
 
   pinMode(DOWN, INPUT_PULLDOWN);
   DownEncoder.PIN = DOWN;
   DownEncoder.Delay = 5;
-  attachInterrupt(DOWN, InterruptForButtonPress, RISING);
+  // Remove interrupt attachment - polling is more stable for encoders
+  // attachInterrupt(DOWN, InterruptForButtonPress, RISING);
 
   delay(500);
 
@@ -537,19 +754,19 @@ void setup() {
 
   //---------------------------------------------------------------Loops--------------------
   xTaskCreate(
-      GetTemps,                   /* Task function. */
-      "GetTemps",                 /* String with name of task. */
-      10000,                      /* Stack size in words. */
-      (void *)&USER.SENSOR_TEMPS, /* Parameter passed as input of the task */
-      2,                          /* Priority of the task. */
-      &ReadTempsTask);            /* Task handle. */
+      GetTemps,   /* Task function. */
+      "GetTemps", /* String with name of task. */
+      4096,       /* Stack size in bytes (reduced from 10000 words = 40KB) */
+      (void*)&USER.SENSOR_TEMPS, /* Parameter passed as input of the task */
+      2,                         /* Priority of the task. */
+      &ReadTempsTask);           /* Task handle. */
 
   xTaskCreatePinnedToCore(
-      MaintainWifi,                 /* Task function. */
-      "MaintainWifi",               /* String with name of task. */
-      10000,                        /* Stack size in words. */
-      (void *)&USER,                /* Parameter passed as input of the task */
-      6,                            /* Priority of the task. */
+      MaintainWifi,   /* Task function. */
+      "MaintainWifi", /* String with name of task. */
+      4096,         /* Stack size in bytes (reduced from 10000 words = 40KB) */
+      (void*)&USER, /* Parameter passed as input of the task */
+      6,            /* Priority of the task. */
       &MaintainWifiTask,            /* Task handle. */
       CONFIG_ARDUINO_RUNNING_CORE); /* Core to run on. */
 
@@ -557,7 +774,7 @@ void setup() {
       xTimerCreate("Store_Temp_Timer",  // Name of timer - not really used
                    2000 / portTICK_PERIOD_MS,  // Period of timer in ticks
                    pdFALSE,                    // pdTRUE to auto-reload timer
-                   (void *)0,                  // Timer ID
+                   (void*)0,                   // Timer ID
                    SaveCurrentTempsCallback);  // the callback function
 
   // Give timer time to start if needed
@@ -573,6 +790,12 @@ bool BTN_PRESSED_STATE = false;
 bool UP_ENCODER_STATE = false;
 
 void loop() {
+  // Reset watchdog timer in main loop
+  esp_task_wdt_reset();
+
+  // Handle OTA updates
+  ArduinoOTA.handle();
+
   // Encoder Press 0= heating function, 1= on temp, 2 = low temp
   bool BTN_Pressed = PressBtn.buttonDebounce();
   if (BTN_Pressed != BTN_PRESSED_STATE && BTN_Pressed && SELECTED_TEMP == 0) {
@@ -691,9 +914,9 @@ void loop() {
   if (LOW_TEMP_EXISTING != USER.LOW_TEMP_SET ||
       HIGH_TEMP_EXISTING != USER.HIGH_TEMP_SET ||
       SELECTED_TEMP != SELECTED_TEMP_EXISTING ||
-      ROOM_TEMP_EXISTING != USER.SENSOR_TEMPS.ROOM_TEMP ||
-      EXHAUST_TOP_TEMP_EXISTING != USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP ||
-      EXHAUST_BOTTOM_TEMP_EXISTING != USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP ||
+      ON_BOARD_TEMP_EXISTING != USER.SENSOR_TEMPS.ON_BOARD_TEMP ||
+      LOWER_VENT_TEMP_EXISTING != USER.SENSOR_TEMPS.LOWER_VENT_TEMP ||
+      IN_ROOM_TEMP_EXISTING != USER.SENSOR_TEMPS.IN_ROOM_TEMP ||
       USER.SELECTED_MODE != SELECTED_MODE_EXISTING) {
     //
     // Save current set temps to flash storage
@@ -709,25 +932,21 @@ void loop() {
     LOW_TEMP_EXISTING = USER.LOW_TEMP_SET;
     HIGH_TEMP_EXISTING = USER.HIGH_TEMP_SET;
     SELECTED_TEMP_EXISTING = SELECTED_TEMP;
-    ROOM_TEMP_EXISTING = USER.SENSOR_TEMPS.ROOM_TEMP;
-    EXHAUST_TOP_TEMP_EXISTING = USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP;
-    EXHAUST_BOTTOM_TEMP_EXISTING = USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP;
+    ON_BOARD_TEMP_EXISTING = USER.SENSOR_TEMPS.ON_BOARD_TEMP;
+    LOWER_VENT_TEMP_EXISTING = USER.SENSOR_TEMPS.LOWER_VENT_TEMP;
+    IN_ROOM_TEMP_EXISTING = USER.SENSOR_TEMPS.IN_ROOM_TEMP;
     SELECTED_MODE_EXISTING = USER.SELECTED_MODE;
 
     // write to the OLED
-    drawScreen(USER.SENSOR_TEMPS.ROOM_TEMP,
-               USER.SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP,
-               USER.SENSOR_TEMPS.EXHAUST_TOP_TEMP, USER.HIGH_TEMP_SET,
+    drawScreen(USER.SENSOR_TEMPS.ON_BOARD_TEMP, USER.SENSOR_TEMPS.IN_ROOM_TEMP,
+               USER.SENSOR_TEMPS.LOWER_VENT_TEMP, USER.HIGH_TEMP_SET,
                USER.LOW_TEMP_SET, USER.SELECTED_MODE, SELECTED_TEMP);
     EvaluateCurrentTemps();
   }
 
-  if (RESTART_TIME < millis() && !ReadTempsTask_Running) {
-    Serial.println("Restarting Temp Read Loop");
-    vTaskResume(ReadTempsTask);
-    ReadTempsTask_Running = true;
+  // Removed problematic task suspension/resume logic that was causing crashes
+  // Tasks now run continuously without interruption
 
-    vTaskResume(MaintainWifiTask);
-    MaintainWifi_Running = true;
-  }
+  // Small delay to prevent watchdog issues
+  delay(10);
 }

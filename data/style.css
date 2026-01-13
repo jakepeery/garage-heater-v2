@@ -227,8 +227,9 @@ input{
 }
 
 .submitBtn{
-  width: 120px;
-  height: 50px;
+  width: 80%;
+  margin-top: 10px;
+  font-size: 1.2rem;
 }
 
 .close:hover,
@@ -248,4 +249,151 @@ input{
 .modalHeader{
   display: block;
   height: 50px;
+}
+
+.cycle_timing {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+}
+
+.timing_control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 1.2rem;
+  color: lightgray;
+}
+
+.timing_value {
+  min-width: 80px;
+  text-align: center;
+  color: #7ba9ff;
+  font-weight: bold;
+}
+
+.firmware_update {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.file-input {
+  padding: 10px;
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: lightgray;
+  font-size: 1rem;
+}
+
+.upload-btn {
+  margin-top: 10px;
+}
+
+.progress-container {
+  width: 100%;
+  background-color: #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  height: 30px;
+  margin-top: 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #7ba9ff;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+#progressText {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-weight: bold;
+}
+
+.upload-status {
+  margin-top: 10px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.wifi_settings {
+  padding: 15px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.wifi_settings form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wifi_settings label {
+  color: lightgray;
+  font-size: 1.2rem;
+}
+
+.wifi_settings input[type="text"] {
+  padding: 10px;
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: lightgray;
+  font-size: 1rem;
+}
+
+.note {
+  font-size: 0.9rem;
+  color: #999;
+  font-style: italic;
+  margin-top: 10px;
+  display: block;
+}
+
+.system_info {
+  padding: 15px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin-top: 15px;
+  font-size: 0.95rem;
+}
+
+.info_row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.info_row:last-child {
+  border-bottom: none;
+}
+
+.info_label {
+  color: #999;
+  font-weight: 500;
+}
+
+.info_value {
+  color: #7ba9ff;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-all;
 }

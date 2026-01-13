@@ -1,8 +1,10 @@
 #include <Preferences.h>
+#include <esp_task_wdt.h>
 
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "ESPAsyncWebServer.h"
+#include "Update.h"
 #include "WiFi.h"
 #include "main.h"
 
@@ -144,9 +146,11 @@ bool SetupWifi() {
     count = count + 1;
 
     delay(1000);
+    esp_task_wdt_reset();  // Reset watchdog during WiFi connection attempts
     status = WiFi.status();
     Serial.println(get_wifi_status(status));
-    if (count > 50) {
+    if (count > 20) {  // Reduced from 50 to 20 seconds max wait
+      Serial.println("\nconnecting to wifi seems to be failing");
       break;
     }
   }
@@ -165,7 +169,7 @@ bool SetupWifi() {
 }
 
 void SetupWifiAsAP() {
-  const char *ssid = "garage_heater ";
+  const char* ssid = "garage_heater ";
   IPAddress Server_ip(192, 168, 4, 1);  // IP address of this box
   IPAddress gateway(192, 168, 4, 1);    // gateway of your network
   IPAddress subnet(255, 255, 255, 0);   // subnet mask of your network
@@ -191,7 +195,7 @@ void SetupWifiAsAP() {
 }
 
 // Replaces placeholder with LED state value
-String processor(const String &var) {
+String processor(const String& var) {
   String ledState;
   Serial.println(var);
   if (var == "STATE") {
@@ -216,19 +220,22 @@ String processor(const String &var) {
 //   request->send(response);
 // }
 
-void SetupRoutes(UserSettableData *User) {
+void SetupRoutes(UserSettableData* User) {
   // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
-
+  // Route for settings page
+  server.on("/settings.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send(SPIFFS, "/settings.html", "text/html");
+  });
   // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(SPIFFS, "/style.css", "text/css");
   });
 
   // Route to load style.css file
-  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(SPIFFS, "/favicon.ico", "image/x-icon");
   });
 
@@ -238,15 +245,15 @@ void SetupRoutes(UserSettableData *User) {
   //   });
 
   // Route to set GPIO to HIGH
-  server.on("/on", HTTP_GET, [User](AsyncWebServerRequest *request) {
+  server.on("/on", HTTP_GET, [User](AsyncWebServerRequest* request) {
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
   server.on("/cgi-bin/setWifi", HTTP_GET,
-            [User](AsyncWebServerRequest *request) {
+            [User](AsyncWebServerRequest* request) {
               String ssid;
               String password;
-              AsyncJsonResponse *response = new AsyncJsonResponse();
+              AsyncJsonResponse* response = new AsyncJsonResponse();
 
               response->setContentType("application/json");
               response->addHeader("Server", "ESP Async Web Server");
@@ -276,9 +283,9 @@ void SetupRoutes(UserSettableData *User) {
             });
 
   server.on("/cgi-bin/setMode", HTTP_GET,
-            [User](AsyncWebServerRequest *request) {
+            [User](AsyncWebServerRequest* request) {
               String param;
-              AsyncJsonResponse *response = new AsyncJsonResponse();
+              AsyncJsonResponse* response = new AsyncJsonResponse();
 
               response->setContentType("application/json");
               response->addHeader("Server", "ESP Async Web Server");
@@ -318,9 +325,9 @@ void SetupRoutes(UserSettableData *User) {
 
   server.on(
       "/cgi-bin/bumpHighTemp", HTTP_GET,
-      [User](AsyncWebServerRequest *request) {
+      [User](AsyncWebServerRequest* request) {
         String direction;
-        AsyncJsonResponse *response = new AsyncJsonResponse();
+        AsyncJsonResponse* response = new AsyncJsonResponse();
 
         Serial.println("bump_high_temp");
 
@@ -360,11 +367,11 @@ void SetupRoutes(UserSettableData *User) {
       });
 
   server.on(
-      "/cgi-bin/bumpLowTemp", HTTP_GET, [User](AsyncWebServerRequest *request) {
+      "/cgi-bin/bumpLowTemp", HTTP_GET, [User](AsyncWebServerRequest* request) {
         Serial.println("bump_low_temp");
 
         String direction;
-        AsyncJsonResponse *response = new AsyncJsonResponse();
+        AsyncJsonResponse* response = new AsyncJsonResponse();
         response->setContentType("application/json");
         response->addHeader("Server", "ESP Async Web Server");
         response->setCode(200);
@@ -402,9 +409,9 @@ void SetupRoutes(UserSettableData *User) {
       });
 
   server.on(
-      "/cgi-bin/setHighTemp", HTTP_GET, [User](AsyncWebServerRequest *request) {
+      "/cgi-bin/setHighTemp", HTTP_GET, [User](AsyncWebServerRequest* request) {
         String level;
-        AsyncJsonResponse *response = new AsyncJsonResponse();
+        AsyncJsonResponse* response = new AsyncJsonResponse();
 
         response->setContentType("application/json");
         response->addHeader("Server", "ESP Async Web Server");
@@ -439,9 +446,9 @@ void SetupRoutes(UserSettableData *User) {
       });
 
   server.on(
-      "/cgi-bin/setLowTemp", HTTP_GET, [User](AsyncWebServerRequest *request) {
+      "/cgi-bin/setLowTemp", HTTP_GET, [User](AsyncWebServerRequest* request) {
         String level;
-        AsyncJsonResponse *response = new AsyncJsonResponse();
+        AsyncJsonResponse* response = new AsyncJsonResponse();
 
         response->setContentType("application/json");
         response->addHeader("Server", "ESP Async Web Server");
@@ -476,46 +483,66 @@ void SetupRoutes(UserSettableData *User) {
       });
 
   server.on("/cgi-bin/getTemps", HTTP_GET,
-            [User](AsyncWebServerRequest *request) {
-              AsyncJsonResponse *response = new AsyncJsonResponse();
+            [User](AsyncWebServerRequest* request) {
+              AsyncJsonResponse* response = new AsyncJsonResponse();
 
               response->setContentType("application/json");
               response->addHeader("Server", "ESP Async Web Server");
               response->setCode(200);
               JsonObject root = response->getRoot();
 
-              char top_temp[8];
-              char bottom_temp[8];
-              char room_temp[8];
+              char lower_vent_temp[8];
+              char in_room_temp[8];
+              char on_board_temp[8];
 
               char high_temp[8];
               char low_temp[8];
 
-              float top = User->SENSOR_TEMPS.EXHAUST_TOP_TEMP;
-              float bottom = User->SENSOR_TEMPS.EXHAUST_BOTTOM_TEMP;
-              float room = User->SENSOR_TEMPS.ROOM_TEMP;
+              float lower_vent = User->SENSOR_TEMPS.LOWER_VENT_TEMP;
+              float in_room = User->SENSOR_TEMPS.IN_ROOM_TEMP;
+              float on_board = User->SENSOR_TEMPS.ON_BOARD_TEMP;
 
               float high = User->HIGH_TEMP_SET;
               float low = User->LOW_TEMP_SET;
 
               int selected_mode = User->SELECTED_MODE;
 
-              sprintf(top_temp, "%.1f", top);
-              sprintf(bottom_temp, "%.1f", bottom);
-              sprintf(room_temp, "%.1f", room);
+              sprintf(lower_vent_temp, "%.1f", lower_vent);
+              sprintf(in_room_temp, "%.1f", in_room);
+              sprintf(on_board_temp, "%.1f", on_board);
 
               sprintf(high_temp, "%.0f", high);
               sprintf(low_temp, "%.0f", low);
 
-              root["exhaust_top_temp"] = top_temp;
-              root["exhaust_bottom_temp"] = bottom_temp;
-              root["room_temp"] = room_temp;
+              root["lower_vent_temp"] = lower_vent_temp;
+              root["in_room_temp"] = in_room_temp;
+              root["on_board_temp"] = on_board_temp;
+
+              // Add sensor connection status
+              root["on_board_temp_connected"] =
+                  User->SENSOR_TEMPS.ON_BOARD_TEMP_CONNECTED;
+              root["in_room_temp_connected"] =
+                  User->SENSOR_TEMPS.IN_ROOM_TEMP_CONNECTED;
+              root["lower_vent_temp_connected"] =
+                  User->SENSOR_TEMPS.LOWER_VENT_TEMP_CONNECTED;
+              root["sensors_valid"] = User->SENSOR_TEMPS.SENSORS_VALID;
+              root["fan_failure"] = User->SENSOR_TEMPS.FAN_FAILURE_DETECTED;
               root["gas_on"] = User->GAS_ON;
               root["fan_on"] = User->FAN_ON;
               root["exhaust_on"] = User->EXHAUST_ON;
 
               root["high_temp"] = high_temp;
               root["low_temp"] = low_temp;
+
+              // Add cycle timing to response (extern from main.cpp)
+              extern unsigned long gasMaxRunTime;
+              extern unsigned long gasRestTime;
+              char gas_on_str[8];
+              char gas_rest_str[8];
+              sprintf(gas_on_str, "%.1f", gasMaxRunTime / 60000.0);
+              sprintf(gas_rest_str, "%.1f", gasRestTime / 60000.0);
+              root["gas_on_time"] = gas_on_str;
+              root["gas_rest_time"] = gas_rest_str;
 
               if (selected_mode == 1) {
                 root["room_state"] = "UnOccupied";
@@ -534,6 +561,196 @@ void SetupRoutes(UserSettableData *User) {
               response->setLength();
               request->send(response);
             });
+
+  // System info endpoint for diagnostics
+  server.on("/cgi-bin/sysinfo", HTTP_GET,
+            [User](AsyncWebServerRequest* request) {
+              AsyncJsonResponse* response = new AsyncJsonResponse();
+              response->setContentType("application/json");
+              response->setCode(200);
+              JsonObject root = response->getRoot();
+
+              // Uptime
+              unsigned long uptimeSeconds = millis() / 1000;
+              unsigned long days = uptimeSeconds / 86400;
+              unsigned long hours = (uptimeSeconds % 86400) / 3600;
+              unsigned long minutes = (uptimeSeconds % 3600) / 60;
+              unsigned long seconds = uptimeSeconds % 60;
+
+              char uptimeStr[64];
+              if (days > 0) {
+                sprintf(uptimeStr, "%lud %luh %lum %lus", days, hours, minutes,
+                        seconds);
+              } else if (hours > 0) {
+                sprintf(uptimeStr, "%luh %lum %lus", hours, minutes, seconds);
+              } else if (minutes > 0) {
+                sprintf(uptimeStr, "%lum %lus", minutes, seconds);
+              } else {
+                sprintf(uptimeStr, "%lus", seconds);
+              }
+              root["uptime"] = uptimeStr;
+              root["uptime_seconds"] = uptimeSeconds;
+
+              // Memory
+              root["free_heap"] = ESP.getFreeHeap();
+              root["heap_size"] = ESP.getHeapSize();
+              root["free_sketch_space"] = ESP.getFreeSketchSpace();
+              root["sketch_size"] = ESP.getSketchSize();
+
+              // WiFi
+              root["wifi_ssid"] = WiFi.SSID();
+              root["wifi_rssi"] = WiFi.RSSI();
+              int rssi = WiFi.RSSI();
+              int quality = 2 * (rssi + 100);  // Convert to percentage
+              if (quality > 100) quality = 100;
+              if (quality < 0) quality = 0;
+              root["wifi_quality"] = quality;
+              root["wifi_ip"] = WiFi.localIP().toString();
+              root["wifi_mac"] = WiFi.macAddress();
+
+              // Chip info
+              root["chip_model"] = ESP.getChipModel();
+              root["chip_cores"] = ESP.getChipCores();
+              root["cpu_freq"] = ESP.getCpuFreqMHz();
+
+              response->setLength();
+              request->send(response);
+            });
+
+  // Adjust gas on time
+  server.on("/cgi-bin/adjustGasOnTime", HTTP_GET,
+            [User](AsyncWebServerRequest* request) {
+              extern unsigned long gasMaxRunTime;
+              extern Preferences storedCycleTimes;
+
+              if (request->hasParam("delta")) {
+                float delta = request->getParam("delta")->value().toFloat();
+                float currentMinutes = gasMaxRunTime / 60000.0;
+                float newMinutes = currentMinutes + delta;
+
+                // Limit between 1 and 15 minutes
+                if (newMinutes < 1.0) newMinutes = 1.0;
+                if (newMinutes > 15.0) newMinutes = 15.0;
+
+                gasMaxRunTime = (unsigned long)(newMinutes * 60000);
+
+                // Save to preferences
+                storedCycleTimes.begin("cycleTimes", false);
+                storedCycleTimes.putULong("gasOnTime", gasMaxRunTime);
+                storedCycleTimes.end();
+
+                Serial.print("Gas On Time adjusted to: ");
+                Serial.print(newMinutes);
+                Serial.println(" minutes");
+              }
+
+              AsyncJsonResponse* response = new AsyncJsonResponse();
+              response->setContentType("application/json");
+              response->setCode(200);
+              JsonObject root = response->getRoot();
+
+              char gas_on_str[8];
+              sprintf(gas_on_str, "%.1f", gasMaxRunTime / 60000.0);
+              root["gas_on_time"] = gas_on_str;
+
+              response->setLength();
+              request->send(response);
+            });
+
+  // Adjust gas rest time
+  server.on("/cgi-bin/adjustGasRestTime", HTTP_GET,
+            [User](AsyncWebServerRequest* request) {
+              extern unsigned long gasRestTime;
+              extern Preferences storedCycleTimes;
+
+              if (request->hasParam("delta")) {
+                float delta = request->getParam("delta")->value().toFloat();
+                float currentMinutes = gasRestTime / 60000.0;
+                float newMinutes = currentMinutes + delta;
+
+                // Limit between 0.5 and 10 minutes
+                if (newMinutes < 0.5) newMinutes = 0.5;
+                if (newMinutes > 10.0) newMinutes = 10.0;
+
+                gasRestTime = (unsigned long)(newMinutes * 60000);
+
+                // Save to preferences
+                storedCycleTimes.begin("cycleTimes", false);
+                storedCycleTimes.putULong("gasRestTime", gasRestTime);
+                storedCycleTimes.end();
+
+                Serial.print("Gas Rest Time adjusted to: ");
+                Serial.print(newMinutes);
+                Serial.println(" minutes");
+              }
+
+              AsyncJsonResponse* response = new AsyncJsonResponse();
+              response->setContentType("application/json");
+              response->setCode(200);
+              JsonObject root = response->getRoot();
+
+              char gas_rest_str[8];
+              sprintf(gas_rest_str, "%.1f", gasRestTime / 60000.0);
+              root["gas_rest_time"] = gas_rest_str;
+
+              response->setLength();
+              request->send(response);
+            });
+
+  // Reboot endpoint
+  server.on("/cgi-bin/reboot", HTTP_GET, [](AsyncWebServerRequest* request) {
+    AsyncJsonResponse* response = new AsyncJsonResponse();
+    response->setContentType("application/json");
+    response->setCode(200);
+    JsonObject root = response->getRoot();
+    root["status"] = "rebooting";
+    response->setLength();
+    request->send(response);
+
+    Serial.println("\n\nManual reboot requested!\n\n");
+    vTaskDelay(1000);
+    ESP.restart();
+  });
+
+  // OTA Firmware Update Handler
+  server.on(
+      "/update", HTTP_POST,
+      [](AsyncWebServerRequest* request) {
+        // Simple authentication check
+        if (!request->authenticate("admin", "garage123")) {
+          return request->requestAuthentication();
+        }
+        bool shouldReboot = !Update.hasError();
+        AsyncWebServerResponse* response = request->beginResponse(
+            200, "text/plain", shouldReboot ? "OK" : "FAIL");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        if (shouldReboot) {
+          delay(1000);
+          ESP.restart();
+        }
+      },
+      [](AsyncWebServerRequest* request, String filename, size_t index,
+         uint8_t* data, size_t len, bool final) {
+        if (!index) {
+          Serial.printf("Update Start: %s\n", filename.c_str());
+          if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
+            Update.printError(Serial);
+          }
+        }
+        if (!Update.hasError()) {
+          if (Update.write(data, len) != len) {
+            Update.printError(Serial);
+          }
+        }
+        if (final) {
+          if (Update.end(true)) {
+            Serial.printf("Update Success: %uB\n", index + len);
+          } else {
+            Update.printError(Serial);
+          }
+        }
+      });
 }
 
 // String IpAddress2String(const IPAddress &ipAddress) {
@@ -542,7 +759,7 @@ void SetupRoutes(UserSettableData *User) {
 //          String(ipAddress[3]);
 // }
 
-void SetupWebServerWithWifi(UserSettableData *UserData) {
+void SetupWebServerWithWifi(UserSettableData* UserData) {
   bool SetupWithWifi = SetupWifi();
   Serial.print("SetupWithWifi: ");
   Serial.println(SetupWithWifi);
@@ -572,7 +789,7 @@ void SetupWebServerWithWifi(UserSettableData *UserData) {
 }
 
 // checks to make sure wifi is still connected and reconnects if failed
-void MaintainWifi(void *pvParameters) {
+void MaintainWifi(void* pvParameters) {
   while (1) {
     if (WiFi.status() == WL_CONNECTED || AP_Mode) {
       Serial.println("\nConnected to Wifi Check");

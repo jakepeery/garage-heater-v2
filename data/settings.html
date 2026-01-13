@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Garage Heater - Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+
+<body>
+  <div class="controls">
+    <div class="headder">
+      <a href="/" style="text-decoration: none; color: inherit;">
+        <h1>&larr; Settings</h1>
+      </a>
+    </div>
+    <div class="controls2">
+      <p>
+      <p>Gas Cycle Timing</p>
+      <div class="cycle_timing">
+        <div class="timing_control">
+          <span>Gas On Time:</span>
+          <span class="timing_value"><span id="gasOnTime">N/A</span> min</span>
+          <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasOnTime(-0.5)">-</button></a>
+          <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasOnTime(0.5)">+</button></a>
+        </div>
+        <div class="timing_control">
+          <span>Gas Rest Time:</span>
+          <span class="timing_value"><span id="gasRestTime">N/A</span> min</span>
+          <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasRestTime(-0.5)">-</button></a>
+          <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasRestTime(0.5)">+</button></a>
+        </div>
+      </div>
+      </p>
+
+      <p>
+      <p>Firmware Update</p>
+      <div class="firmware_update">
+        <form id="uploadForm" enctype="multipart/form-data">
+          <input type="file" id="firmwareFile" accept=".bin" class="file-input" />
+          <button type="button" onclick="uploadFirmware()" class="button upload-btn">Upload Firmware</button>
+        </form>
+        <div id="uploadProgress" class="progress-container" style="display: none;">
+          <div class="progress-bar" id="progressBar"></div>
+          <span id="progressText">0%</span>
+        </div>
+        <div id="uploadStatus" class="upload-status"></div>
+      </div>
+      </p>
+
+      <p>
+      <p>WiFi Settings</p>
+      <div class="wifi_settings">
+        <form action="/cgi-bin/setWifi" id="submitWifi">
+          <label for="ssid">SSID:</label><br>
+          <input type="text" id="ssid" name="ssid" value=""><br><br>
+          <label for="password">Password:</label><br>
+          <input type="text" id="password" name="password" value=""><br><br>
+          <input type="submit" value="Save & Reboot" class="button submitBtn">
+          <button type="button" onclick="rebootDevice()" class="button"
+            style="background-color: #FF9800; margin-left: 10px;">Reboot</button>
+        </form>
+        <span class="note">Submitting will reboot the system</span>
+      </div>
+      </p>
+
+      <p>
+      <p>System Information</p>
+      <div class="system_info">
+        <div class="info_row">
+          <span class="info_label">Uptime:</span>
+          <span class="info_value" id="uptime">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">Free Memory:</span>
+          <span class="info_value" id="freeHeap">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">WiFi Signal:</span>
+          <span class="info_value" id="wifiSignal">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">WiFi SSID:</span>
+          <span class="info_value" id="wifiSSID">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">IP Address:</span>
+          <span class="info_value" id="ipAddress">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">MAC Address:</span>
+          <span class="info_value" id="macAddress">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">Chip:</span>
+          <span class="info_value" id="chipInfo">Loading...</span>
+        </div>
+        <div class="info_row">
+          <span class="info_label">Firmware Size:</span>
+          <span class="info_value" id="firmwareSize">Loading...</span>
+        </div>
+      </div>
+      </p>
+
+      <p style="margin-top: 30px;">
+        <a href="/"><button class="button">&larr; Back to Main</button></a>
+      </p>
+    </div>
+  </div>
+</body>
+
+</html>
+
+<script>
+  async function adjustGasOnTime(delta) {
+    console.log("/cgi-bin/adjustGasOnTime?delta=" + delta)
+    url = "http://" + location.hostname + "/cgi-bin/adjustGasOnTime?delta=" + delta
+
+    let response = await fetch(url);
+    let json = await response.json();
+    document.getElementById("gasOnTime").innerHTML = json.gas_on_time
+  }
+
+  async function adjustGasRestTime(delta) {
+    console.log("/cgi-bin/adjustGasRestTime?delta=" + delta)
+    url = "http://" + location.hostname + "/cgi-bin/adjustGasRestTime?delta=" + delta
+
+    let response = await fetch(url);
+    let json = await response.json();
+    document.getElementById("gasRestTime").innerHTML = json.gas_rest_time
+  }
+
+  async function GetCurrentSettings() {
+    url = "http://" + location.hostname + "/cgi-bin/getTemps"
+
+    let response = await fetch(url);
+    let json = await response.json();
+
+    // Update cycle timing display
+    if (json.gas_on_time !== undefined) {
+      document.getElementById("gasOnTime").innerHTML = json.gas_on_time
+    }
+    if (json.gas_rest_time !== undefined) {
+      document.getElementById("gasRestTime").innerHTML = json.gas_rest_time
+    }
+  }
+
+  async function GetSystemInfo() {
+    url = "http://" + location.hostname + "/cgi-bin/sysinfo"
+
+    try {
+      let response = await fetch(url);
+      let json = await response.json();
+
+      // Update system info display
+      document.getElementById("uptime").innerHTML = json.uptime || "N/A";
+
+      // Format memory as KB/MB
+      let freeHeap = json.free_heap;
+      let heapSize = json.heap_size;
+      let memoryText = (freeHeap / 1024).toFixed(1) + " KB / " + (heapSize / 1024).toFixed(1) + " KB";
+      document.getElementById("freeHeap").innerHTML = memoryText;
+
+      // WiFi signal with quality indicator
+      let quality = json.wifi_quality;
+      let rssi = json.wifi_rssi;
+      let signalColor = quality > 60 ? "#4CAF50" : quality > 30 ? "#FFC107" : "#f44336";
+      document.getElementById("wifiSignal").innerHTML =
+        `<span style="color: ${signalColor}">${quality}% (${rssi} dBm)</span>`;
+
+      document.getElementById("wifiSSID").innerHTML = json.wifi_ssid || "N/A";
+      document.getElementById("ipAddress").innerHTML = json.wifi_ip || "N/A";
+      document.getElementById("macAddress").innerHTML = json.wifi_mac || "N/A";
+
+      // Chip info
+      let chipText = json.chip_model + " (" + json.chip_cores + " cores @ " + json.cpu_freq + " MHz)";
+      document.getElementById("chipInfo").innerHTML = chipText;
+
+      // Firmware size
+      let sketchSize = json.sketch_size;
+      let freeSketch = json.free_sketch_space;
+      let firmwareText = (sketchSize / 1024).toFixed(1) + " KB / " + ((sketchSize + freeSketch) / 1024).toFixed(1) + " KB";
+      document.getElementById("firmwareSize").innerHTML = firmwareText;
+
+    } catch (error) {
+      console.error("Error fetching system info:", error);
+    }
+  }
+
+  async function uploadFirmware() {
+    const fileInput = document.getElementById('firmwareFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+      alert('Please select a firmware file (.bin)');
+      return;
+    }
+
+    if (!file.name.endsWith('.bin')) {
+      alert('Please select a valid .bin firmware file');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('firmware', file);
+
+    document.getElementById('uploadProgress').style.display = 'block';
+    document.getElementById('uploadStatus').innerHTML = '';
+
+    try {
+      const response = await fetch('/update', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        document.getElementById('uploadStatus').innerHTML =
+          '<span style="color: #4CAF50;">✓ Upload successful! Device will reboot...</span>';
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('progressText').innerHTML = '100%';
+
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 5000);
+      } else {
+        document.getElementById('uploadStatus').innerHTML =
+          '<span style="color: #f44336;">✗ Upload failed. Please try again.</span>';
+      }
+    } catch (error) {
+      document.getElementById('uploadStatus').innerHTML =
+        '<span style="color: #f44336;">✗ Error: ' + error.message + '</span>';
+    }
+  }
+
+  async function rebootDevice() {
+    if (!confirm('Are you sure you want to reboot the device?')) {
+      return;
+    }
+
+    try {
+      const url = "http://" + location.hostname + "/cgi-bin/reboot";
+      const response = await fetch(url);
+
+      if (response.ok) {
+        alert('Device is rebooting. Page will reload in 10 seconds...');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 10000);
+      } else {
+        alert('Failed to reboot device');
+      }
+    } catch (error) {
+      console.error('Reboot error:', error);
+      // Device is likely already rebooting, redirect anyway
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 10000);
+    }
+  }
+
+  // Load settings on page load
+  GetCurrentSettings();
+  GetSystemInfo();
+
+  // Refresh settings every 5 seconds
+  setInterval(GetCurrentSettings, 5000);
+  setInterval(GetSystemInfo, 5000);
+</script>

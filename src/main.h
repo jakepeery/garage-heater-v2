@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Preferences.h>
 
 #include "SPIFFS.h"
 
@@ -9,9 +10,12 @@
 
 #define reset_time 5000
 
-// safety temperatures
-#define exhaust_top_max_temp_safety 250
-#define exhaust_bottom_max_temp_safety 200
+// Safety temperatures
+// Inline duct fan (VIVOSUN 6" 240CFM) max ambient temp is 140°F
+// Set exhaust safety limit to 140°F to protect the fan
+#define exhaust_temp_max_safety 140
+// Room sensors should never exceed DS18B20 max (150°F) but add buffer
+#define room_temp_max_safety 145
 
 // relay pins - GPO
 #define GAS_RELAY 18
@@ -28,9 +32,19 @@
 #define OLED_SDA 21
 
 struct Temps {
-  float ROOM_TEMP;
-  float EXHAUST_BOTTOM_TEMP;
-  float EXHAUST_TOP_TEMP;
+  float ON_BOARD_TEMP;    // DS18B20 #1 - on board sensor
+  float IN_ROOM_TEMP;     // DS18B20 #2 - in room sensor
+  float LOWER_VENT_TEMP;  // Thermocouple - lower vent exhaust temp
+  bool SENSORS_VALID = true;
+  unsigned long LAST_CHANGE_TIME = 0;
+
+  // Individual sensor status - true if connected and working
+  bool ON_BOARD_TEMP_CONNECTED = false;
+  bool IN_ROOM_TEMP_CONNECTED = false;
+  bool LOWER_VENT_TEMP_CONNECTED = false;
+
+  // Fan failure detection
+  bool FAN_FAILURE_DETECTED = false;
 };
 
 struct UserSettableData {

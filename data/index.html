@@ -6,67 +6,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" type="text/css" href="style.css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-
 </head>
 
 <body>
   <div class="controls">
-    <!-- The Modal -->
-    <div id="myModal" class="modal">
-
-      <!-- Modal content -->
-      <div class="modal-content">
-        <div class="modalHeader">
-          <div class="close">&times;</div>
-          <!-- &times; -->
-        </div>
-        <div class="modalForm">
-          <h3>Wifi Settings</h3>
-          <form action="/cgi-bin/setWifi" id="submitWifi">
-            <label for="ssid">SSID:</label><br>
-            <input type="text" id="ssid" name="ssid" value=""><br><br>
-            <label for="password">Password:</label><br>
-            <input type="text" id="password" name="password" value=""><br><br>
-            <input type="submit" value="Submit" class="submitBtn">
-          </form>
-          <span>submitting new parameters will reboot the system</span>
-        </div>
-      </div>
-
-    </div>
     <div class="headder">
       <h1>Garage Heater</h1>
       <span class="settings">
-        <button class="settings_button" id="SettingsButton">
-          <!-- Gear wheel -->
-          <!-- <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" class="bi bi-gear" viewBox="0 0 16 16">
-              <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0"/>
-              <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115z"/>
-            </svg> -->
-          <!-- Wifi Symbol -->
-          <div>
-            <svg fill="currentColor" height="35" width="35" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
-              xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 -10 365.892 365.892" xml:space="default">
-              <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-              <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-              <g id="SVGRepo_iconCarrier">
+        <a href="/settings.html" style="text-decoration: none;">
+          <button class="settings_button" id="SettingsButton">
+            <div>
+              <svg fill="currentColor" height="35" width="35" version="1.1" id="Capa_1"
+                xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+                viewBox="0 0 489.802 489.802" xml:space="preserve">
                 <g>
-                  <circle cx="182.945" cy="286.681" r="41.494"></circle>
-                  <path
-                    d="M182.946,176.029c-35.658,0-69.337,17.345-90.09,46.398c-5.921,8.288-4.001,19.806,4.286,25.726 c3.249,2.321,6.994,3.438,10.704,3.438c5.754,0,11.423-2.686,15.021-7.724c13.846-19.383,36.305-30.954,60.078-30.954 c23.775,0,46.233,11.571,60.077,30.953c5.919,8.286,17.437,10.209,25.726,4.288c8.288-5.92,10.208-17.438,4.288-25.726 C252.285,193.373,218.606,176.029,182.946,176.029z">
-                  </path>
-                  <path
-                    d="M182.946,106.873c-50.938,0-99.694,21.749-133.77,59.67c-6.807,7.576-6.185,19.236,1.392,26.044 c3.523,3.166,7.929,4.725,12.32,4.725c5.051-0.001,10.082-2.063,13.723-6.116c27.091-30.148,65.849-47.439,106.336-47.439 s79.246,17.291,106.338,47.438c6.808,7.576,18.468,8.198,26.043,1.391c7.576-6.808,8.198-18.468,1.391-26.043 C282.641,128.621,233.883,106.873,182.946,106.873z">
-                  </path>
-                  <path
-                    d="M360.611,112.293c-47.209-48.092-110.305-74.577-177.665-74.577c-67.357,0-130.453,26.485-177.664,74.579 c-7.135,7.269-7.027,18.944,0.241,26.079c3.59,3.524,8.255,5.282,12.918,5.281c4.776,0,9.551-1.845,13.161-5.522 c40.22-40.971,93.968-63.534,151.344-63.534c57.379,0,111.127,22.563,151.343,63.532c7.136,7.269,18.812,7.376,26.08,0.242 C367.637,131.238,367.745,119.562,360.611,112.293z">
-                  </path>
+                  <path d="M20,256.5h113.3c4.6,21.4,23.6,37.5,46.4,37.5s41.8-16.1,46.4-37.5H469c11,0,20-9,20-20s-9-20-20-20H226.1
+                    c-4.6-21.4-23.6-37.5-46.4-37.5s-41.8,16.1-46.4,37.5H20c-11,0-20,9-20,20S9,256.5,20,256.5z M179.7,216.5
+                    c11,0,20,9,20,20s-9,20-20,20s-20-9-20-20S168.7,216.5,179.7,216.5z" />
+                  <path d="M469,84.7H355.7c-4.6-21.4-23.6-37.5-46.4-37.5s-41.8,16.1-46.4,37.5H20c-11,0-20,9-20,20s9,20,20,20h243.3
+                    c4.6,21.4,23.6,37.5,46.4,37.5s41.8-16.1,46.4-37.5H469c11,0,20-9,20-20S480,84.7,469,84.7z M309.3,124.7c-11,0-20-9-20-20
+                    s9-20,20-20s20,9,20,20S320.3,124.7,309.3,124.7z" />
+                  <path d="M469,385.2H355.7c-4.6-21.4-23.6-37.5-46.4-37.5s-41.8,16.1-46.4,37.5H20c-11,0-20,9-20,20s9,20,20,20h243.3
+                    c4.6,21.4,23.6,37.5,46.4,37.5s41.8-16.1,46.4-37.5H469c11,0,20-9,20-20S480,385.2,469,385.2z M309.3,425.2c-11,0-20-9-20-20
+                    s9-20,20-20s20,9,20,20S320.3,425.2,309.3,425.2z" />
                 </g>
-              </g>
-            </svg>
-          </div>
-        </button>
+              </svg>
+            </div>
+          </button>
+        </a>
       </span>
     </div>
     <div class="controls2">
@@ -98,18 +65,23 @@
       <p>Sensor Readings
       <div class="sensor_div">
         <span class="sensor_val_container">
-          <div class="sensor_title">Room</div>
+          <div class="sensor_title">On Board</div>
           <div class="sensor_value"><span id="Room">N/A</span></div>
         </span>
         <span class="sensor_val_container">
-          <div class="sensor_title">Lower Vent</div>
+          <div class="sensor_title">In Room</div>
           <div class="sensor_value"><span id="Bottom">N/A</span></div>
         </span>
         <span class="sensor_val_container">
-          <div class="sensor_title">Top Vent</div>
+          <div class="sensor_title">Lower Vent</div>
           <div class="sensor_value"><span id="Top">N/A</span></div>
         </span>
       </div>
+      </p>
+      <p id="fanFailureWarning"
+        style="display: none; color: #ff0000; font-weight: bold; margin-top: 10px; padding: 15px; background-color: #ffe0e0; border: 2px solid #ff0000; border-radius: 5px;">
+        !! FAN FAILURE DETECTED !!<br>
+        <span style="font-size: 0.9rem;">Lower fan may be broken</span>
       </p>
     </div>
   </div>
@@ -208,7 +180,6 @@
     document.getElementById("Low").innerHTML = json.low_temp + String.fromCharCode(176) + "F"
   }
 
-
   async function GetCurrentTemps() {
     url = "http://" + location.hostname + "/cgi-bin/getTemps"
 
@@ -216,13 +187,34 @@
     let json = await response.json();
 
     console.log(json)
-    console.log("Top", json.exhaust_top_temp)
-    console.log("bottom", json.exhaust_bottom_temp)
-    console.log("room", json.room_temp)
+    console.log("Lower Vent", json.lower_vent_temp)
+    console.log("In Room", json.in_room_temp)
+    console.log("On Board", json.on_board_temp)
 
-    document.getElementById("Room").innerHTML = json.room_temp + String.fromCharCode(176) + "F"
-    document.getElementById("Bottom").innerHTML = json.exhaust_bottom_temp + String.fromCharCode(176) + "F"
-    document.getElementById("Top").innerHTML = json.exhaust_top_temp + String.fromCharCode(176) + "F"
+    // Display temps with connection status
+    if (json.on_board_temp_connected) {
+      document.getElementById("Room").innerHTML = json.on_board_temp + String.fromCharCode(176) + "F"
+      document.getElementById("Room").style.color = "white";
+    } else {
+      document.getElementById("Room").innerHTML = "N/A"
+      document.getElementById("Room").style.color = "#f44336";
+    }
+
+    if (json.in_room_temp_connected) {
+      document.getElementById("Bottom").innerHTML = json.in_room_temp + String.fromCharCode(176) + "F"
+      document.getElementById("Bottom").style.color = "white";
+    } else {
+      document.getElementById("Bottom").innerHTML = "N/A"
+      document.getElementById("Bottom").style.color = "#f44336";
+    }
+
+    if (json.lower_vent_temp_connected) {
+      document.getElementById("Top").innerHTML = json.lower_vent_temp + String.fromCharCode(176) + "F"
+      document.getElementById("Top").style.color = "white";
+    } else {
+      document.getElementById("Top").innerHTML = "N/A"
+      document.getElementById("Top").style.color = "#f44336";
+    }
 
     document.getElementById("High").innerHTML = json.high_temp + String.fromCharCode(176) + "F"
     document.getElementById("Low").innerHTML = json.low_temp + String.fromCharCode(176) + "F"
@@ -274,45 +266,15 @@
     } else {
       document.getElementById("exhaust").classList.remove("statusElementOn")
     }
+
+    // Show/hide fan failure warning
+    if (json.fan_failure) {
+      document.getElementById("fanFailureWarning").style.display = "block";
+    } else {
+      document.getElementById("fanFailureWarning").style.display = "none";
+    }
   }
   setInterval(GetCurrentTemps, 2000)
   GetCurrentTemps();
-
-
-
-  // Get the modal
-  var modal = document.getElementById("myModal");
-
-  // Get the button that opens the modal
-  var btn = document.getElementById("SettingsButton");
-
-  // Get the <span> element that closes the modal
-  var span = document.getElementsByClassName("close")[0];
-
-  // Get the <span> element that closes the modal
-  var submitPressed = document.getElementById("submitWifi");
-
-  // When the user clicks the button, open the modal 
-  btn.onclick = function () {
-    console.log("settingsPressed")
-    modal.style.display = "block";
-  }
-
-  // When the user clicks on <span> (x), close the modal
-  span.onclick = function () {
-    modal.style.display = "none";
-  }
-
-  //close modal on submit
-  submitPressed.onsubmit = function () {
-    modal.style.display = "none";
-  }
-
-  // When the user clicks anywhere outside of the modal, close it
-  window.onclick = function (event) {
-    if (event.target == modal) {
-      modal.style.display = "none";
-    }
-  }
 
 </script>
