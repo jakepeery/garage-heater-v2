@@ -44,14 +44,17 @@ MAX6675 thermocouple(thermoSCK, thermoCS, thermoSO);
   5.0  // Reject if differs by more than 5°F from average
 #define OUTLIER_THRESHOLD_THERMOCOUPLE \
   15.0  // Thermocouple is noisier, allow bigger variance
+#define CONSECUTIVE_OUTLIER_ACCEPT \
+  3  // Accept trend after 3 consecutive outliers in same direction
 
 // Helper function to calculate moving average with outlier rejection
 float calculateFilteredTemp(float newReading, float* buffer, int* bufferIndex,
                             int bufferSize, float outlierThreshold,
-                            float lastValid) {
-  // First time initialization - fill buffer with first valid reading
-  static bool initialized[3] = {false, false, false};  // Track init per sensor
-  static int sensorId = 0;  // Simple counter for sensor tracking
+                            float lastValid, int sensorId) {
+  // Track consecutive outliers per sensor to detect legitimate trends
+  static int consecutiveOutlierCount[3] = {0, 0, 0};  // One per sensor
+  static float lastOutlierDirection[3] = {0, 0,
+                                          0};  // +1 for higher, -1 for lower
 
   // Calculate current average
   float sum = 0;
@@ -69,15 +72,46 @@ float calculateFilteredTemp(float newReading, float* buffer, int* bufferIndex,
   bool isOutlier = false;
   if (validCount > 0 && abs(newReading - currentAvg) > outlierThreshold) {
     isOutlier = true;
-    Serial.print("Outlier detected: ");
-    Serial.print(newReading);
-    Serial.print("°F (avg: ");
-    Serial.print(currentAvg);
-    Serial.print("°F, diff: ");
-    Serial.print(abs(newReading - currentAvg));
-    Serial.println("°F) - using previous average");
-    // Use the current average instead of the outlier
-    newReading = currentAvg;
+
+    // Determine direction of outlier
+    float direction = (newReading > currentAvg) ? 1.0 : -1.0;
+
+    // Check if this continues the trend from previous outliers
+    if (direction == lastOutlierDirection[sensorId]) {
+      consecutiveOutlierCount[sensorId]++;
+    } else {
+      // Direction changed, reset counter
+      consecutiveOutlierCount[sensorId] = 1;
+      lastOutlierDirection[sensorId] = direction;
+    }
+
+    // If we have multiple consecutive outliers in same direction, accept as
+    // legitimate trend
+    if (consecutiveOutlierCount[sensorId] >= CONSECUTIVE_OUTLIER_ACCEPT) {
+      Serial.print("Accepting outlier trend (");
+      Serial.print(consecutiveOutlierCount[sensorId]);
+      Serial.print(" consecutive): ");
+      Serial.print(newReading);
+      Serial.println("°F");
+      // Reset counter and accept the new reading
+      consecutiveOutlierCount[sensorId] = 0;
+      // Don't replace newReading - use the actual value
+    } else {
+      Serial.print("Outlier detected: ");
+      Serial.print(newReading);
+      Serial.print("°F (avg: ");
+      Serial.print(currentAvg);
+      Serial.print("°F, diff: ");
+      Serial.print(abs(newReading - currentAvg));
+      Serial.print("°F, count: ");
+      Serial.print(consecutiveOutlierCount[sensorId]);
+      Serial.println(") - using previous average");
+      // Use the current average instead of the outlier
+      newReading = currentAvg;
+    }
+  } else {
+    // Not an outlier, reset consecutive counter
+    consecutiveOutlierCount[sensorId] = 0;
   }
 
   // Add to circular buffer
@@ -185,17 +219,17 @@ void GetTemps(void* pvParameters) {
     if (roomTempValid) {
       newRoomTemp = calculateFilteredTemp(
           newRoomTemp, onBoardBuffer, &onBoardIndex, TEMP_BUFFER_SIZE,
-          OUTLIER_THRESHOLD_DS18B20, SENSOR_TEMPS->ON_BOARD_TEMP);
+          OUTLIER_THRESHOLD_DS18B20, SENSOR_TEMPS->ON_BOARD_TEMP, 0);
     }
     if (roomTemp2Valid) {
       newRoomTemp2 = calculateFilteredTemp(
           newRoomTemp2, inRoomBuffer, &inRoomIndex, TEMP_BUFFER_SIZE,
-          OUTLIER_THRESHOLD_DS18B20, SENSOR_TEMPS->IN_ROOM_TEMP);
+          OUTLIER_THRESHOLD_DS18B20, SENSOR_TEMPS->IN_ROOM_TEMP, 1);
     }
     if (exhaustTempValid) {
       newExhaustTemp = calculateFilteredTemp(
           newExhaustTemp, lowerVentBuffer, &lowerVentIndex, TEMP_BUFFER_SIZE,
-          OUTLIER_THRESHOLD_THERMOCOUPLE, SENSOR_TEMPS->LOWER_VENT_TEMP);
+          OUTLIER_THRESHOLD_THERMOCOUPLE, SENSOR_TEMPS->LOWER_VENT_TEMP, 2);
     }
 
     // Track consecutive failures
