@@ -16,92 +16,93 @@
       </a>
     </div>
     <div class="controls2">
-      <p>
-      <p>Gas Cycle Timing</p>
-      <div class="cycle_timing">
-        <div class="timing_control">
-          <span>Gas On Time:</span>
-          <span class="timing_value"><span id="gasOnTime">N/A</span> min</span>
-          <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasOnTime(-0.5)">-</button></a>
-          <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasOnTime(0.5)">+</button></a>
-        </div>
-        <div class="timing_control">
-          <span>Gas Rest Time:</span>
-          <span class="timing_value"><span id="gasRestTime">N/A</span> min</span>
-          <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasRestTime(-0.5)">-</button></a>
-          <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasRestTime(0.5)">+</button></a>
+      <div class="section-card">
+        <div class="section-title">Gas Cycle Timing</div>
+        <div class="cycle_timing">
+          <div class="timing_control">
+            <span>Gas On Time:</span>
+            <span class="timing_value"><span id="gasOnTime">N/A</span> min</span>
+            <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasOnTime(-0.5)">-</button></a>
+            <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasOnTime(0.5)">+</button></a>
+          </div>
+          <div class="timing_control">
+            <span>Gas Rest Time:</span>
+            <span class="timing_value"><span id="gasRestTime">N/A</span> min</span>
+            <a><button class="tempButton down disable-dbl-tap-zoom" onclick="adjustGasRestTime(-0.5)">-</button></a>
+            <a><button class="tempButton up disable-dbl-tap-zoom" onclick="adjustGasRestTime(0.5)">+</button></a>
+          </div>
         </div>
       </div>
-      </p>
 
-      <p>
-      <p>Firmware Update</p>
-      <div class="firmware_update">
-        <form id="uploadForm" enctype="multipart/form-data">
-          <input type="file" id="firmwareFile" accept=".bin" class="file-input" />
-          <button type="button" onclick="uploadFirmware()" class="button upload-btn">Upload Firmware</button>
-        </form>
-        <div id="uploadProgress" class="progress-container" style="display: none;">
-          <div class="progress-bar" id="progressBar"></div>
-          <span id="progressText">0%</span>
+      <div class="section-card">
+        <div class="section-title">Firmware Update</div>
+        <div class="firmware_update">
+          <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="firmwareFile" accept=".bin" class="file-input" />
+            <button type="button" onclick="uploadFirmware()" class="button upload-btn">Upload Firmware</button>
+          </form>
+          <div id="uploadProgress" class="progress-container" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+            <span id="progressText">0%</span>
+          </div>
+          <div id="uploadStatus" class="upload-status"></div>
         </div>
-        <div id="uploadStatus" class="upload-status"></div>
       </div>
-      </p>
 
-      <p>
-      <p>WiFi Settings</p>
-      <div class="wifi_settings">
-        <form action="/cgi-bin/setWifi" id="submitWifi">
-          <label for="ssid">SSID:</label><br>
-          <input type="text" id="ssid" name="ssid" value=""><br><br>
-          <label for="password">Password:</label><br>
-          <input type="text" id="password" name="password" value=""><br><br>
-          <input type="submit" value="Save & Reboot" class="button submitBtn">
-          <button type="button" onclick="rebootDevice()" class="button"
-            style="background-color: #FF9800; margin-left: 10px;">Reboot</button>
-        </form>
-        <span class="note">Submitting will reboot the system</span>
+      <div class="section-card">
+        <div class="section-title">WiFi Settings</div>
+        <div class="wifi_settings">
+          <form action="/cgi-bin/setWifi" id="submitWifi">
+            <label for="ssid">SSID:</label>
+            <input type="text" id="ssid" name="ssid" value="">
+            <label for="password">Password:</label>
+            <input type="text" id="password" name="password" value="">
+            <div class="settings-actions">
+              <input type="submit" value="Save & Reboot" class="button submitBtn">
+              <button type="button" onclick="rebootDevice()" class="button buttonWarn">Reboot</button>
+            </div>
+          </form>
+          <span class="note">Submitting will reboot the system</span>
+        </div>
       </div>
-      </p>
 
-      <p>
-      <p>System Information</p>
-      <div class="system_info">
-        <div class="info_row">
-          <span class="info_label">Uptime:</span>
-          <span class="info_value" id="uptime">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">Free Memory:</span>
-          <span class="info_value" id="freeHeap">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">WiFi Signal:</span>
-          <span class="info_value" id="wifiSignal">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">WiFi SSID:</span>
-          <span class="info_value" id="wifiSSID">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">IP Address:</span>
-          <span class="info_value" id="ipAddress">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">MAC Address:</span>
-          <span class="info_value" id="macAddress">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">Chip:</span>
-          <span class="info_value" id="chipInfo">Loading...</span>
-        </div>
-        <div class="info_row">
-          <span class="info_label">Firmware Size:</span>
-          <span class="info_value" id="firmwareSize">Loading...</span>
+      <div class="section-card">
+        <div class="section-title">System Information</div>
+        <div class="system_info">
+          <div class="info_row">
+            <span class="info_label">Uptime:</span>
+            <span class="info_value" id="uptime">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">Free Memory:</span>
+            <span class="info_value" id="freeHeap">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">WiFi Signal:</span>
+            <span class="info_value" id="wifiSignal">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">WiFi SSID:</span>
+            <span class="info_value" id="wifiSSID">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">IP Address:</span>
+            <span class="info_value" id="ipAddress">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">MAC Address:</span>
+            <span class="info_value" id="macAddress">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">Chip:</span>
+            <span class="info_value" id="chipInfo">Loading...</span>
+          </div>
+          <div class="info_row">
+            <span class="info_label">Firmware Size:</span>
+            <span class="info_value" id="firmwareSize">Loading...</span>
+          </div>
         </div>
       </div>
-      </p>
 
       <p style="margin-top: 30px;">
         <a href="/"><button class="button">&larr; Back to Main</button></a>

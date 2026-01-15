@@ -50,13 +50,13 @@
       <a><button class="button buttonNotSelected" id="ForceFan" onclick="setMode('5')">Force Fan</button></a>
       <a><button class="button button2 buttonRedNotSelected" id="FullOff" onclick="setMode('3')">Full Off</button></a>
       </p>
-      <p class="disable-dbl-tap-zoom>">
+      <p class="disable-dbl-tap-zoom">
       <p>High Temp</p>
       <p class="temperature"><span id="High">N/A</span></p>
       <a><button class="tempButton down disable-dbl-tap-zoom" onclick="highTempBumpDown()">-</button></a>
       <a><button class="tempButton up disable-dbl-tap-zoom" onclick="highTempBumpUp()">+</button></a>
       </p>
-      <p class="disable-dbl-tap-zoom>">
+      <p class="disable-dbl-tap-zoom">
       <p>Low Temp</p>
       <p class="temperature"><span id="Low">N/A</span></p>
       <a><button class="tempButton down disable-dbl-tap-zoom" onclick="lowTempBumpDown()">-</button></a>
@@ -78,8 +78,10 @@
         </span>
       </div>
       </p>
-      <p id="fanFailureWarning"
-        style="display: none; color: #ff0000; font-weight: bold; margin-top: 10px; padding: 15px; background-color: #ffe0e0; border: 2px solid #ff0000; border-radius: 5px;">
+      <p id="systemStatus" class="status-box">
+        Status: <span id="StatusText">Loading...</span>
+      </p>
+      <p id="fanFailureWarning" class="fan-warning">
         !! FAN FAILURE DETECTED !!<br>
         <span style="font-size: 0.9rem;">Lower fan may be broken</span>
       </p>
@@ -272,6 +274,11 @@
       document.getElementById("fanFailureWarning").style.display = "block";
     } else {
       document.getElementById("fanFailureWarning").style.display = "none";
+    }
+
+    // Update system status
+    if (json.system_status) {
+      document.getElementById("StatusText").innerHTML = json.system_status;
     }
   }
   setInterval(GetCurrentTemps, 2000)

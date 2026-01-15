@@ -223,30 +223,30 @@ String processor(const String& var) {
 void SetupRoutes(UserSettableData* User) {
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-    request->send(SPIFFS, "/index.html", String(), false, processor);
+    request->send(LittleFS, "/index.html", String(), false, processor);
   });
   // Route for settings page
   server.on("/settings.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-    request->send(SPIFFS, "/settings.html", "text/html");
+    request->send(LittleFS, "/settings.html", "text/html");
   });
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest* request) {
-    request->send(SPIFFS, "/style.css", "text/css");
+    request->send(LittleFS, "/style.css", "text/css");
   });
 
-  // Route to load style.css file
+  // Route to load favicon.ico file
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
-    request->send(SPIFFS, "/favicon.ico", "image/x-icon");
+    request->send(LittleFS, "/favicon.ico", "image/x-icon");
   });
 
   //   // Route to load style.css file
   //   server.on("/gear.svg", HTTP_GET, [](AsyncWebServerRequest *request) {
-  //     request->send(SPIFFS, "/gear.svg", "image/x-icon");
+  //     request->send(LittleFS, "/gear.svg", "image/x-icon");
   //   });
 
   // Route to set GPIO to HIGH
   server.on("/on", HTTP_GET, [User](AsyncWebServerRequest* request) {
-    request->send(SPIFFS, "/index.html", String(), false, processor);
+    request->send(LittleFS, "/index.html", String(), false, processor);
   });
 
   server.on("/cgi-bin/setWifi", HTTP_GET,
@@ -530,6 +530,7 @@ void SetupRoutes(UserSettableData* User) {
               root["gas_on"] = User->GAS_ON;
               root["fan_on"] = User->FAN_ON;
               root["exhaust_on"] = User->EXHAUST_ON;
+              root["system_status"] = User->SYSTEM_STATUS;
 
               root["high_temp"] = high_temp;
               root["low_temp"] = low_temp;
@@ -710,6 +711,32 @@ void SetupRoutes(UserSettableData* User) {
     Serial.println("\n\nManual reboot requested!\n\n");
     vTaskDelay(1000);
     ESP.restart();
+  });
+
+  // Format LittleFS endpoint - clears filesystem
+  server.on("/cgi-bin/formatfs", HTTP_POST, [](AsyncWebServerRequest* request) {
+    AsyncJsonResponse* response = new AsyncJsonResponse();
+    response->setContentType("application/json");
+    response->setCode(200);
+    JsonObject root = response->getRoot();
+
+    Serial.println("\n\nFormatting LittleFS...");
+    LittleFS.end();
+    bool success = LittleFS.format();
+    bool mounted = LittleFS.begin(true);
+
+    if (success && mounted) {
+      root["status"] = "formatted";
+      Serial.println("LittleFS formatted and mounted successfully!");
+    } else {
+      root["status"] = "error";
+      root["format_ok"] = success;
+      root["mount_ok"] = mounted;
+      Serial.println("LittleFS format/mount failed!");
+    }
+
+    response->setLength();
+    request->send(response);
   });
 
   // OTA Firmware Update Handler

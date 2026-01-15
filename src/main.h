@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
-#include "SPIFFS.h"
+#include "LittleFS.h"
 
 // time in ms to reset the encoder press button selection to the default of the
 // mode selection not temp selection
@@ -13,7 +13,9 @@
 // Safety temperatures
 // Inline duct fan (VIVOSUN 6" 240CFM) max ambient temp is 140°F
 // Set exhaust safety limit to 140°F to protect the fan
-#define exhaust_temp_max_safety 140
+#define EXHAUST_TEMP_MAX_SAFETY 150
+// Must cool below this before resuming gas after exhaust over-temp
+#define EXHAUST_TEMP_RESUME 128
 // Room sensors should never exceed DS18B20 max (150°F) but add buffer
 #define room_temp_max_safety 145
 
@@ -51,6 +53,7 @@ struct UserSettableData {
   Temps SENSOR_TEMPS;
   char IPAddress[64];
   char WifiMode[64];
+  char SYSTEM_STATUS[128] = "Initializing...";
   bool GAS_ON = false;
   bool FAN_ON = false;
   bool EXHAUST_ON = false;

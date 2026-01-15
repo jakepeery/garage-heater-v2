@@ -268,7 +268,10 @@ void GetTemps(void* pvParameters) {
     }
 
     // Check for stuck sensors (no change for STUCK_VALUE_TIMEOUT)
-    bool stuckSensors = (millis() - lastChangeTime) > STUCK_VALUE_TIMEOUT;
+    // Only consider "stuck" if at least one sensor is actually connected/valid
+    bool anySensorPresent = roomTempConnected || roomTemp2Connected || exhaustTempValid;
+    bool stuckSensors = anySensorPresent &&
+              (millis() - lastChangeTime) > STUCK_VALUE_TIMEOUT;
 
     // Fan failure detection - check if lower vent is heating up when gas is on
     // Detect when gas turns on to start the check timer

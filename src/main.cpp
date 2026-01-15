@@ -7,7 +7,7 @@
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <Update.h>
 #include <esp_task_wdt.h>
 
@@ -20,20 +20,12 @@ static Preferences storedTemps;
 static TimerHandle_t storeTempsOneShotTimer;
 static TaskHandle_t ReadTempsTask;
 
-bool ReadTempsTask_Running = false;
-
 TaskHandle_t MaintainWifiTask;
-bool MaintainWifi_Running = false;
-
-// delay timer to restart tasks after the encoder is changed
-unsigned long RESTART_TIME = 0;
 
 // overall system power - the heater will not un if false
 bool SYSTEM_ON = false;
 bool OCCUPIED_ON = false;  // if high heat occupied temp, if false, heat to
 
-// float LOW_TEMP_SET = 40;
-// float HIGH_TEMP_SET = 68;
 float LOW_TEMP_EXISTING;
 float HIGH_TEMP_EXISTING;
 float MAX_TEMP = 99;
@@ -93,7 +85,7 @@ class DebouncedButton {
 };
 
 // time in ms the gas should be on before the heater turns on
-unsigned long fanDelayTime = 10;  // in ms
+unsigned long fanDelayTime = 1000;  // in ms
 
 // gas on off times - balanced for continuous warm air with gentle cycling
 // Longer on-time reduces valve wear, shorter rest keeps air warm
@@ -103,9 +95,6 @@ unsigned long gasRestTime = 90000;     // 1.5 minutes off (default)
 unsigned long gasRestStoppedTime;
 
 // Exhaust temperature management for safety and efficiency
-#define EXHAUST_TEMP_WARNING 125   // Force cooldown and wait for temp to drop
-#define EXHAUST_TEMP_CRITICAL 132  // Immediate shutdown - near fan limit
-#define EXHAUST_TEMP_RESUME 115    // Must cool below this before resuming gas
 bool exhaustTempLimitTriggered = false;
 
 // Preferences object for storing cycle times
@@ -130,12 +119,18 @@ void startHeater() {
     USER.GAS_ON = true;
     USER.EXHAUST_ON = true;
     gasStartedTime = millis();
+    snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+             "Starting heater - gas and exhaust on");
   }
 
   // When time has elapsed, start fan
   if (heaterStarted && millis() > gasStartedTime + fanDelayTime) {
     USER.FAN_ON = true;
     USER.EXHAUST_ON = true;  // might as well for good luck
+    snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+             "Heating - gas cycle %d/%d sec",
+             (int)((millis() - gasStartedTime) / 1000),
+             (int)(gasMaxRunTime / 1000));
   }
 
   // CRITICAL: If sensors become invalid, immediately shut down
@@ -147,21 +142,14 @@ void startHeater() {
   }
 
   // Check exhaust temp - force shutdown if too hot
-  if (USER.GAS_ON == true &&
-      USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_CRITICAL) {
-    Serial.print("*** EXHAUST CRITICAL: ");
+    if (USER.GAS_ON == true &&
+      USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_MAX_SAFETY) {
+    Serial.print("*** EXHAUST TOO HOT: ");
     Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
     Serial.println("F - FORCING COOLDOWN ***");
     USER.GAS_ON = false;
-    gasRestStoppedTime = millis();
-    exhaustTempLimitTriggered = true;
-  } else if (USER.GAS_ON == true &&
-             USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_WARNING) {
-    Serial.print("*** EXHAUST WARNING: ");
-    Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
-    Serial.println("F - FORCING COOLDOWN ***");
-    USER.GAS_ON = false;
-    gasRestStoppedTime = millis();
+    // gasRestStoppedTime = millis();  // Don't set timer for thermal events -
+    // use temp-only resume
     exhaustTempLimitTriggered = true;
   }
 
@@ -170,6 +158,8 @@ void startHeater() {
       millis() > gasStartedTime + gasMaxRunTime) {
     USER.GAS_ON = false;
     gasRestStoppedTime = millis();
+    snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+             "Normal cycle - resting for %d sec", (int)(gasRestTime / 1000));
   }
 
   // Restart gas once conditions are met
@@ -183,9 +173,13 @@ void startHeater() {
         Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
         Serial.println("F - OK to resume");
         exhaustTempLimitTriggered = false;
+        gasRestStoppedTime = millis() - gasRestTime;  // reset timer
         canResume = true;
       } else {
         // Still too hot - keep waiting
+        snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+                 "THERMAL WAIT: Exhaust %.1fF - need below %dF to resume",
+                 USER.SENSOR_TEMPS.LOWER_VENT_TEMP, EXHAUST_TEMP_RESUME);
         if (millis() - gasRestStoppedTime > 10000) {  // Log every 10 seconds
           static unsigned long lastTempLog = 0;
           if (millis() - lastTempLog > 10000) {
@@ -201,6 +195,11 @@ void startHeater() {
       }
     } else {
       // Normal cycle - just wait for time
+      unsigned long elapsed = millis() - gasRestStoppedTime;
+      unsigned long remaining =
+          (elapsed < gasRestTime) ? (gasRestTime - elapsed) / 1000 : 0;
+      snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+               "Normal rest - %lu sec remaining", remaining);
       canResume = (millis() > gasRestStoppedTime + gasRestTime);
     }
 
@@ -227,6 +226,9 @@ void stopHeater() {
     USER.GAS_ON = false;
     heaterStarted = false;
     gasStoppedTime = millis();
+    float targetTemp = OCCUPIED_ON ? USER.HIGH_TEMP_SET : USER.LOW_TEMP_SET;
+    snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+             "Target reached (%.1fF) - cooling down", targetTemp);
   }
 
   // run fan and exhaust for 1 minute
@@ -252,8 +254,10 @@ void stopHeater() {
 void GasOff() {
   digitalWrite(GAS_RELAY, LOW);
   USER.GAS_ON = false;
-  gasRestStoppedTime = millis();
-  // used to force gas to stop the normal rest period
+  if (!exhaustTempLimitTriggered) {
+    gasRestStoppedTime = millis();
+    // used to force gas to stop the normal rest period
+  }
 }
 
 bool EvaluateSafetyTemps() {
@@ -274,11 +278,12 @@ bool EvaluateSafetyTemps() {
     return false;
   }
 
-  // Check exhaust temp - must stay below 140°F to protect inline duct fan
-  if (USER.SENSOR_TEMPS.LOWER_VENT_TEMP > exhaust_temp_max_safety) {
+  // Check exhaust temp - must stay below set temp to protect inline duct fan
+  if (USER.SENSOR_TEMPS.LOWER_VENT_TEMP > EXHAUST_TEMP_MAX_SAFETY) {
     Serial.print("*** EXHAUST TOO HOT: ");
     Serial.print(USER.SENSOR_TEMPS.LOWER_VENT_TEMP);
     Serial.println("F - SHUTTING DOWN ***");
+    exhaustTempLimitTriggered = true;
     GasOff();
     isSafe = false;
   }
@@ -312,6 +317,11 @@ void EvaluateCurrentTemps() {
     } else if (USER.SENSOR_TEMPS.IN_ROOM_TEMP >
                USER.HIGH_TEMP_SET + SEPARATION_TEMP) {
       stopHeater();
+    } else {
+      // Within target range
+      snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+               "Maintaining temp: %.1fF (target %.0fF)",
+               USER.SENSOR_TEMPS.IN_ROOM_TEMP, USER.HIGH_TEMP_SET);
     }
   } else if (SYSTEM_ON && !OCCUPIED_ON && EvaluateSafetyTemps()) {
     // evaluate the temperature readings
@@ -320,6 +330,19 @@ void EvaluateCurrentTemps() {
     } else if (USER.SENSOR_TEMPS.IN_ROOM_TEMP >
                USER.LOW_TEMP_SET + SEPARATION_TEMP) {
       stopHeater();
+    } else {
+      // Within target range
+      snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+               "Maintaining temp: %.1fF (target %.0fF)",
+               USER.SENSOR_TEMPS.IN_ROOM_TEMP, USER.LOW_TEMP_SET);
+    }
+  } else {
+    // System off or unsafe
+    if (!SYSTEM_ON) {
+      snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS), "System OFF");
+    } else if (!EvaluateSafetyTemps()) {
+      snprintf(USER.SYSTEM_STATUS, sizeof(USER.SYSTEM_STATUS),
+               "SAFETY SHUTDOWN - temp too high");
     }
   }
 }
@@ -657,6 +680,12 @@ void setup() {
   delay(500);
   printHardwareInfo();
 
+  if (!LittleFS.begin(true)) {
+    Serial.println("LittleFS mount failed (formatted on fail). Web UI may be unavailable.");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+
   SetupWebServerWithWifi(&USER);
 
   // Setup OTA updates
@@ -666,7 +695,7 @@ void setup() {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH) {
       type = "sketch";
-    } else {  // U_SPIFFS
+    } else {  // U_SPIFFS (filesystem)
       type = "filesystem";
     }
     Serial.println("Start updating " + type);
@@ -745,12 +774,6 @@ void setup() {
   delay(500);
 
   SetupTempSensors();
-
-  // Initialize SPIFFS
-  if (!SPIFFS.begin(true)) {
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    return;
-  }
 
   //---------------------------------------------------------------Loops--------------------
   xTaskCreate(
